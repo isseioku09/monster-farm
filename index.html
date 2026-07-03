@@ -1,0 +1,1866 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>QRモンスターファーム</title>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --panel: #16213e;
+    --panel2: #0f3460;
+    --accent: #e94560;
+    --gold: #f5c518;
+    --text: #eaeaea;
+    --green: #4ecca3;
+    --blue: #53b8ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+  }
+  #app {
+    width: 100%;
+    max-width: 520px;
+    padding: 12px;
+    padding-bottom: 40px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    margin: 8px 0 2px;
+    color: var(--gold);
+    text-shadow: 0 2px 8px rgba(245,197,24,.3);
+  }
+  .subtitle { text-align: center; font-size: 11px; color: #8a8aa8; margin-bottom: 10px; }
+  .panel {
+    background: var(--panel);
+    border: 1px solid #2a3a5e;
+    border-radius: 14px;
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  .panel h2 { font-size: 15px; color: var(--blue); margin-bottom: 10px; }
+  button {
+    font-family: inherit;
+    background: var(--panel2);
+    color: var(--text);
+    border: 1px solid #3a5a8e;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: transform .1s, background .2s;
+  }
+  button:hover { background: #17497e; }
+  button:active { transform: scale(.96); }
+  button:disabled { opacity: .35; cursor: default; }
+  button.primary { background: var(--accent); border-color: #ff6b81; font-weight: bold; }
+  button.primary:hover { background: #ff5570; }
+  button.gold { background: #8a6d00; border-color: var(--gold); color: #fff; font-weight: bold; }
+  button.gold:hover { background: #a88500; }
+  button.mini { font-size: 11px; padding: 4px 8px; border-radius: 7px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-row button { flex: 1; min-width: 90px; }
+  input[type=text] {
+    font-family: inherit;
+    width: 100%;
+    padding: 10px;
+    border-radius: 10px;
+    border: 1px solid #3a5a8e;
+    background: #0d1b33;
+    color: var(--text);
+    font-size: 14px;
+  }
+  select {
+    font-family: inherit;
+    padding: 10px 6px;
+    border-radius: 10px;
+    border: 1px solid #3a5a8e;
+    background: #0d1b33;
+    color: var(--text);
+    font-size: 13px;
+    max-width: 100%;
+    min-width: 0;
+  }
+  #qr-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 16px; overflow: auto;
+  }
+  #qr-modal .qr-box { background: #fff; padding: 14px; border-radius: 14px; display: inline-block; }
+  #qr-modal .qr-box svg { display: block; width: min(65vw, 270px); height: min(65vw, 270px); }
+  #turn-indicator { font-weight: bold; color: var(--blue); text-align: center; margin-bottom: 8px; font-size: 15px; }
+  #video-wrap { position: relative; display: none; margin-top: 10px; }
+  #video { width: 100%; border-radius: 10px; }
+  #scan-frame {
+    position: absolute; top: 50%; left: 50%;
+    width: 60%; aspect-ratio: 1;
+    transform: translate(-50%,-50%);
+    border: 3px solid var(--green);
+    border-radius: 12px;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,.35);
+    pointer-events: none;
+  }
+  /* モンスターカード */
+  .monster-card {
+    text-align: center;
+    background: linear-gradient(160deg, #1b2a4e 0%, #16213e 100%);
+    border-radius: 14px;
+    padding: 14px 10px;
+    border: 1px solid #3a5a8e;
+    position: relative;
+    overflow: hidden;
+  }
+  .monster-svg svg { filter: drop-shadow(0 4px 12px rgba(0,0,0,.5)); }
+  /* ドットキャラのアイドルアニメ (2コマぴょこぴょこ) */
+  .monster-svg svg, .f-img svg, #summon-anim .reveal svg {
+    animation: bob 1.1s steps(2, end) infinite;
+  }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4%); } }
+  .monster-name { font-size: 20px; font-weight: bold; margin-top: 2px; }
+  .monster-species { font-size: 12px; color: #9ab; }
+  .tag-legend { color: var(--gold); font-weight: bold; }
+  .tag-fused { color: #c58cff; font-weight: bold; }
+  .tag-awake { color: #ffb020; font-weight: bold; text-shadow: 0 0 8px rgba(245,197,24,.7); }
+  .rarity { letter-spacing: 2px; color: var(--gold); font-size: 14px; margin-top: 2px; }
+  .rank-badge {
+    position: absolute; top: 10px; right: 10px;
+    background: var(--panel2); border: 1px solid var(--gold);
+    color: var(--gold); border-radius: 8px; padding: 3px 10px;
+    font-weight: bold; font-size: 14px;
+  }
+  .age-badge {
+    position: absolute; top: 10px; left: 10px;
+    font-size: 11px; color: #9ab; text-align: left;
+  }
+  /* ステータスバー */
+  .stats { margin-top: 10px; text-align: left; }
+  .stat-row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; font-size: 12px; }
+  .stat-label { width: 58px; color: #9ab; flex-shrink: 0; }
+  .stat-val { width: 36px; text-align: right; font-weight: bold; flex-shrink: 0; }
+  .bar { flex: 1; height: 8px; background: #0d1b33; border-radius: 4px; overflow: hidden; }
+  .bar > div { height: 100%; border-radius: 4px; transition: width .5s ease; }
+  .cond-row { display: flex; justify-content: space-around; margin-top: 10px; font-size: 12px; }
+  .cond-item { text-align: center; }
+  .cond-item .v { font-size: 16px; font-weight: bold; }
+  /* ログ */
+  #log {
+    background: #0d1b33;
+    border-radius: 10px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  #log .good { color: var(--green); }
+  #log .bad { color: #ff7b8a; }
+  #log .gold-t { color: var(--gold); font-weight: bold; }
+  #log .info { color: var(--blue); }
+  /* バトル画面 */
+  #battle-arena {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 6px;
+  }
+  .fighter { text-align: center; width: 44%; }
+  .fighter .f-img { transition: transform .15s; display: inline-block; }
+  .fighter .f-name { font-size: 13px; font-weight: bold; margin: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hp-bar { height: 12px; background: #0d1b33; border-radius: 6px; overflow: hidden; border: 1px solid #3a5a8e; }
+  .hp-bar > div { height: 100%; background: linear-gradient(90deg, #4ecca3, #7ee8c4); transition: width .4s; }
+  .hp-bar.low > div { background: linear-gradient(90deg, #e94560, #ff8b9a); }
+  .hp-num { font-size: 11px; color: #9ab; margin-top: 2px; }
+  .vs { font-size: 20px; font-weight: bold; color: var(--accent); }
+  .shake { animation: shake .3s; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-8px)} 75%{transform:translateX(8px)} }
+  .attack-l { animation: atkL .3s; }
+  @keyframes atkL { 50% { transform: translateX(24px) scale(1.1); } }
+  .attack-r { animation: atkR .3s; }
+  @keyframes atkR { 50% { transform: translateX(-24px) scale(1.1); } }
+  /* 汎用 */
+  .hidden { display: none !important; }
+  .money { color: var(--gold); font-weight: bold; }
+  .center { text-align: center; }
+  .small { font-size: 11px; color: #8a8aa8; }
+  table.tourney { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.tourney td { padding: 8px 6px; border-bottom: 1px solid #2a3a5e; }
+  table.tourney tr.locked { opacity: .4; }
+  table.tourney tr.cleared td:first-child::after { content: " ✅"; }
+  .dex-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 4px; border-bottom: 1px solid #2a3a5e; font-size: 13px;
+    border-radius: 8px;
+  }
+  .dex-item.fuse-sel { outline: 2px solid var(--accent); background: rgba(233,69,96,.08); }
+  .dex-item .dex-btns { display: flex; flex-direction: column; gap: 4px; }
+  #summon-anim {
+    position: fixed; inset: 0; background: rgba(0,0,0,.88);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  #summon-anim .egg { font-size: 100px; animation: eggShake 1.6s ease; }
+  @keyframes eggShake {
+    0%,20% { transform: rotate(0) scale(.5); opacity: .3; }
+    40% { transform: rotate(-12deg) scale(.9); opacity: 1; }
+    55% { transform: rotate(12deg) scale(.95); }
+    70% { transform: rotate(-8deg) scale(1); }
+    85% { transform: rotate(8deg) scale(1.05); }
+    100% { transform: rotate(0) scale(1); }
+  }
+  #summon-anim .reveal { animation: pop .5s ease; }
+  @keyframes pop { 0% { transform: scale(0); } 70% { transform: scale(1.25); } 100% { transform: scale(1); } }
+  .tab-bar { display: flex; gap: 6px; margin-bottom: 12px; }
+  .tab-bar button { flex: 1; font-size: 13px; padding: 8px 4px; }
+  .tab-bar button.active { background: var(--accent); border-color: #ff6b81; font-weight: bold; }
+</style>
+</head>
+<body>
+<div id="app">
+  <h1>🐲 QRモンスターファーム</h1>
+  <div class="subtitle">世の中のQRコードからモンスターを召喚して、大会ランクSの頂点を目指せ！</div>
+
+  <div class="tab-bar" id="tab-bar">
+    <button data-tab="farm" class="active">🏡 牧場</button>
+    <button data-tab="summon">✨ 召喚</button>
+    <button data-tab="tourney">🏆 大会</button>
+    <button data-tab="versus">🤝 対戦</button>
+    <button data-tab="dex">📖 図鑑</button>
+  </div>
+
+  <!-- ========== 牧場タブ ========== -->
+  <div id="tab-farm">
+    <div id="no-monster" class="panel center">
+      <div style="font-size:48px; margin:10px 0;">🥚</div>
+      <p>まだモンスターがいません。<br>「✨召喚」タブでQRコードを読み込もう！</p>
+    </div>
+
+    <div id="farm-main" class="hidden">
+      <div class="monster-card panel" id="monster-card"></div>
+
+      <div class="panel">
+        <h2>🏋️ 今週のトレーニング <span class="small">（無料！ 1回で1週間経過）</span></h2>
+        <div class="btn-row" style="margin-bottom:8px;">
+          <button onclick="game.train('pow')">💪 ちから</button>
+          <button onclick="game.train('int')">🧠 かしこさ</button>
+          <button onclick="game.train('acc')">🎯 命中</button>
+        </div>
+        <div class="btn-row">
+          <button onclick="game.train('spd')">💨 回避</button>
+          <button onclick="game.train('def')">🛡️ 丈夫さ</button>
+          <button onclick="game.train('life')">❤️ ライフ</button>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button onclick="game.rest()" style="border-color:var(--green); color:var(--green);">😴 休養（疲労回復）</button>
+          <button onclick="game.feed()" style="border-color:var(--gold); color:var(--gold);">🍖 ごちそう 300G</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>📜 記録</h2>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== 召喚タブ ========== -->
+  <div id="tab-summon" class="hidden">
+    <div class="panel">
+      <h2>✨ モンスター召喚</h2>
+      <p class="small" style="margin-bottom:10px;">
+        QRコードにはそれぞれ固有のモンスターが眠っている。全151種族＋色・角・翼・模様の組み合わせで姿は事実上無限！<br>
+        ★★★★以上でしか出会えない<b style="color:var(--gold)">伝説種</b>も…。
+        同じQRコードからは、いつでも同じモンスターが召喚される！<br>
+        👀 うわさ：モンスターにはそれぞれ「機嫌のいい曜日と時間」があるらしい。条件がそろった瞬間に読み込むと、<b class="tag-awake">覚醒</b>した姿で現れるとか…？
+      </p>
+      <div class="btn-row" style="margin-bottom:10px;">
+        <button class="primary" onclick="game.startCamera()">📷 カメラでスキャン</button>
+        <button onclick="document.getElementById('qr-file').click()">🖼️ QR画像を読込</button>
+      </div>
+      <input type="file" id="qr-file" accept="image/*" class="hidden" onchange="game.scanFile(this)">
+      <div id="video-wrap">
+        <video id="video" playsinline muted></video>
+        <div id="scan-frame"></div>
+        <button onclick="game.stopCamera()" style="width:100%; margin-top:8px;">✖ カメラを閉じる</button>
+      </div>
+      <div style="margin-top:12px;">
+        <p class="small" style="margin-bottom:6px;">またはQRコードの中身（URL・文字列）を直接入力：</p>
+        <input type="text" id="manual-code" placeholder="例: https://example.com など何でもOK">
+        <button style="width:100%; margin-top:8px;" onclick="game.manualSummon()">🔮 この文字列から召喚</button>
+      </div>
+      <p class="small" style="margin-top:10px;">⚗️ 2体のモンスターを掛け合わせる<b style="color:#c58cff">融合召喚</b>は「📖図鑑」タブから！</p>
+      <p class="small" id="summon-note" style="margin-top:6px;"></p>
+    </div>
+  </div>
+
+  <!-- ========== 大会タブ ========== -->
+  <div id="tab-tourney">
+    <div class="panel" id="tourney-list-panel">
+      <h2>🏆 公式大会</h2>
+      <table class="tourney" id="tourney-table"></table>
+      <p class="small" style="margin-top:8px;">大会に出場すると4週間経過する。優勝で賞金＆ランクアップ！</p>
+    </div>
+  </div>
+
+  <!-- ========== 対戦タブ ========== -->
+  <div id="tab-versus" class="hidden">
+    <div class="panel">
+      <h2>🤝 ともだち対戦</h2>
+      <p class="small" style="margin-bottom:10px;">
+        自分のモンスターをQRコードにして見せ合いっこ！ ともだちのモンスターQRを読み込むと、そのまま対戦が始まる。<br>
+        ともだち対戦では疲れないし、週も進まない。何回でも遊べる！
+      </p>
+      <div class="btn-row" style="margin-bottom:8px;">
+        <button class="gold" onclick="game.showMyQR()">📱 自分のモンスターQRを表示</button>
+      </div>
+      <div class="btn-row">
+        <button class="primary" onclick="game.scanForBattle()">📷 ともだちのQRをスキャン</button>
+        <button onclick="document.getElementById('qr-file-2').click()">🖼️ QR画像を読込</button>
+      </div>
+      <input type="file" id="qr-file-2" accept="image/*" class="hidden" onchange="game.scanFile(this)">
+      <div style="margin-top:10px;">
+        <input type="text" id="friend-code" placeholder="MON: から始まるコードを貼り付けてもOK">
+        <button style="width:100%; margin-top:8px;" onclick="game.friendCodeSubmit()">⚔️ このコードのモンスターと対戦</button>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>🆚 この端末で2人対戦</h2>
+      <p class="small" style="margin-bottom:10px;">1台のスマホ・タブレットで、交代でわざを選んで対戦。図鑑のモンスターから選ぼう。</p>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+        <select id="vs-a" style="flex:1;"></select>
+        <span class="vs" style="font-size:14px; flex-shrink:0;">VS</span>
+        <select id="vs-b" style="flex:1;"></select>
+      </div>
+      <button class="primary" style="width:100%;" onclick="game.startVersus()">🥊 たいせん開始！</button>
+    </div>
+  </div>
+
+  <!-- ========== バトル画面 (大会・ともだち対戦・2人対戦 共用) ========== -->
+  <div id="tab-battle" class="hidden">
+    <div class="panel" id="battle-panel">
+      <h2 id="battle-title">⚔️ バトル</h2>
+      <div id="battle-arena">
+        <div class="fighter" id="f-player">
+          <div class="f-img"></div>
+          <div class="f-name"></div>
+          <div class="hp-bar"><div></div></div>
+          <div class="hp-num"></div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="fighter" id="f-enemy">
+          <div class="f-img"></div>
+          <div class="f-name"></div>
+          <div class="hp-bar"><div></div></div>
+          <div class="hp-num"></div>
+        </div>
+      </div>
+      <div id="battle-log" style="background:#0d1b33; border-radius:10px; padding:10px; font-size:13px; line-height:1.7; max-height:140px; overflow-y:auto; margin-bottom:10px;"></div>
+      <div id="turn-indicator" class="hidden"></div>
+      <div class="btn-row" id="battle-cmds">
+        <button onclick="game.playerAttack('light')">⚡ 速攻<br><span class="small">命中◎ 威力△</span></button>
+        <button onclick="game.playerAttack('mid')">👊 攻撃<br><span class="small">バランス型</span></button>
+        <button onclick="game.playerAttack('heavy')">💥 必殺<br><span class="small">威力◎ 命中△</span></button>
+      </div>
+      <button id="battle-close" class="hidden primary" style="width:100%; margin-top:8px;" onclick="game.closeBattle()">戻る</button>
+    </div>
+  </div>
+
+  <!-- ========== 図鑑タブ ========== -->
+  <div id="tab-dex">
+    <div class="panel">
+      <h2>📖 召喚図鑑 ＆ ⚗️ 融合</h2>
+      <div id="fuse-bar"></div>
+      <div id="dex-list"><p class="small">まだ誰も召喚していない。</p></div>
+    </div>
+    <div class="panel">
+      <h2>🏆 モンスター図鑑 <span class="small" id="zukan-count"></span></h2>
+      <div class="bar" style="height:10px; margin-bottom:10px;"><div id="zukan-bar" style="background:var(--gold);"></div></div>
+      <div id="zukan-grid" style="display:grid; grid-template-columns:repeat(5,1fr); gap:6px;"></div>
+      <p class="small" style="margin-top:8px;">まだ見ぬなかまはシルエットで表示。いろんなQRを読んで、全種コンプリートを目指せ！金枠は伝説種。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ============================================================
+   QRモンスターファーム
+   - QRコードの中身(文字列)をハッシュ化し、決定論的にモンスター生成
+   - 種族44種(うち8種は★4以上限定の伝説種)
+   - 見た目はSVGパーツ合成: 体型×耳×角×翼×尻尾×模様×色 で個体ごとに変化
+   - 2体を掛け合わせる融合召喚 (コード 'FUSE:'+JSON)
+   - 週単位の育成、E→S ランクの大会
+   ============================================================ */
+
+// ---------- 決定論的乱数 (文字列 → シード → xorshift) ----------
+function hashStr(str) {
+  let h1 = 0x811c9dc5, h2 = 0x2b992ddf;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+    h2 = Math.imul(h2 ^ c, 0x85ebca6b) >>> 0;
+    h2 = (h2 ^ (h2 >>> 13)) >>> 0;
+  }
+  return [h1 >>> 0, h2 >>> 0];
+}
+function makeRng(seed) {
+  let s = seed >>> 0 || 1;
+  return function() {
+    s ^= s << 13; s >>>= 0;
+    s ^= s >> 17;
+    s ^= s << 5; s >>>= 0;
+    return s / 4294967296;
+  };
+}
+
+// ---------- 種族データ (bias: ステ傾向 / vis: 見た目プリセット) ----------
+function sp(name, bias, vis, rare) { return { name, bias, vis, rare: !!rare }; }
+function B(pow, def, spd, int_, acc, life) { return { pow, def, spd, int: int_, acc, life }; }
+const SPECIES = [
+  // ----- 通常種 (133) -----
+  sp('ドラゴ',     B(1.3,1.1,0.8,0.9,1.0,1.1), { hue:[95,150],  body:'round',  horn:'two',  wings:'spiky',   tail:'pointy', pattern:'belly' }),
+  sp('ガルーダ',   B(0.9,0.8,1.4,1.0,1.2,0.8), { hue:[190,220], body:'round',  wings:'feather', tail:'pointy', mouth:'beak', eyeStyle:'angry' }),
+  sp('ゴーレム',   B(1.1,1.5,0.5,0.7,0.9,1.3), { hue:[20,45],   body:'square', sat:18, pattern:'spots', mouth:'flat' }),
+  sp('プルプル',   B(0.7,0.9,1.1,1.3,1.1,1.0), { hue:[0,360],   body:'blob' }),
+  sp('ウルフ',     B(1.1,0.9,1.3,0.9,1.1,0.9), { hue:[200,240], body:'tall',   ears:'cat', tail:'fluffy', sat:25, mouth:'fang', eyeStyle:'angry' }),
+  sp('マーメイ',   B(0.8,1.0,1.2,1.2,1.0,1.0), { hue:[180,210], body:'fish',   acc:'flower', pattern:'belly' }),
+  sp('マッシュ',   B(0.9,1.2,0.7,1.4,0.9,1.1), { hue:[5,35],    body:'round',  acc:'cap' }),
+  sp('メカロン',   B(1.2,1.2,0.9,1.0,1.3,0.8), { hue:[180,220], body:'square', ears:'antenna', sat:12, eyeStyle:'normal', pattern:'stripes', mouth:'flat' }),
+  sp('ゴースト',   B(0.8,0.7,1.3,1.3,1.0,0.9), { hue:[250,290], body:'ghost',  mouth:'open' }),
+  sp('ニャンタ',   B(1.0,0.8,1.4,1.1,1.2,0.9), { hue:[25,50],   body:'round',  ears:'cat', tail:'fluffy', pattern:'stripes' }),
+  sp('カブトン',   B(1.4,1.2,0.8,0.7,0.9,1.0), { hue:[210,260], body:'round',  horn:'one', sat:45, pattern:'shell' }),
+  sp('フェニクス', B(1.2,0.9,1.1,1.2,1.0,1.2), { hue:[0,30],    body:'round',  wings:'feather', tail:'pointy', acc:'flame' }),
+  sp('トカゲロン', B(1.0,1.0,1.2,0.9,1.0,0.9), { hue:[80,130],  body:'tall',   tail:'pointy', pattern:'stripes' }),
+  sp('ペンペン',   B(0.8,1.2,0.9,1.0,1.1,1.1), { hue:[200,230], body:'round',  mouth:'beak', pattern:'belly', sat:30 }),
+  sp('ウサピョン', B(0.8,0.8,1.5,1.0,1.1,0.9), { hue:[320,350], body:'round',  ears:'rabbit', tail:'fluffy', pattern:'belly' }),
+  sp('コウモリン', B(0.9,0.7,1.4,1.1,1.1,0.8), { hue:[260,300], body:'ghost',  wings:'spiky', mouth:'fang' }),
+  sp('タコスケ',   B(0.9,0.9,1.0,1.3,1.1,1.0), { hue:[320,360], body:'blob',   pattern:'spots', mouth:'open' }),
+  sp('カメロック', B(0.9,1.5,0.6,1.0,0.9,1.2), { hue:[90,140],  body:'round',  pattern:'shell', tail:'pointy' }),
+  sp('ハチベエ',   B(1.0,0.7,1.2,0.9,1.4,0.8), { hue:[45,60],   body:'round',  ears:'antenna', wings:'feather', pattern:'stripes' }),
+  sp('クラゲール', B(0.7,0.9,1.1,1.4,1.0,1.0), { hue:[170,200], body:'ghost',  ears:'antenna', sat:35, eyeStyle:'sleepy', pattern:'belly' }),
+  sp('サボテンダ', B(1.0,1.3,0.7,1.0,1.0,1.1), { hue:[90,120],  body:'tall',   pattern:'spots', acc:'flower' }),
+  sp('ユキンコ',   B(0.8,1.1,0.9,1.2,1.0,1.1), { hue:[190,220], body:'round',  pattern:'belly', sat:12, acc:'snow' }),
+  sp('ビリリン',   B(0.9,0.7,1.4,1.1,1.3,0.7), { hue:[48,60],   body:'round',  ears:'antenna', tail:'pointy', eyeStyle:'angry' }),
+  sp('クマゴロウ', B(1.3,1.1,0.7,0.8,0.9,1.3), { hue:[20,40],   body:'tall',   ears:'round', sat:45, mouth:'fang', pattern:'belly' }),
+  sp('ウリボウ',   B(1.3,1.0,1.1,0.7,0.9,1.0), { hue:[15,35],   body:'round',  ears:'cat', tail:'fluffy', sat:40, pattern:'stripes' }),
+  sp('ニョロロ',   B(0.9,0.8,1.3,1.2,1.0,0.9), { hue:[100,140], body:'blob',   tail:'pointy', pattern:'stripes', eyeStyle:'sleepy' }),
+  sp('カニージョ', B(1.2,1.3,0.7,0.8,1.0,1.0), { hue:[0,20],    body:'square', horn:'two', eyeStyle:'angry', mouth:'flat' }),
+  sp('フクロウ丸', B(0.8,0.9,1.0,1.4,1.3,0.8), { hue:[30,50],   body:'round',  ears:'cat', wings:'feather', sat:35, mouth:'beak', pattern:'belly' }),
+  sp('サイロス',   B(1.3,1.3,0.6,0.8,0.9,1.1), { hue:[190,210], body:'round',  horn:'one', sat:20, mouth:'flat', pattern:'spots' }),
+  sp('パンプキン', B(1.1,1.0,0.8,1.2,0.9,1.1), { hue:[25,40],   body:'round',  mouth:'open', pattern:'stripes', acc:'leaf' }),
+  sp('ロボキュー', B(1.0,1.1,1.0,1.1,1.3,0.8), { hue:[180,220], body:'round',  ears:'antenna', sat:10, eyes:1, mouth:'flat' }),
+  sp('モグタン',   B(1.0,1.2,0.9,0.9,1.0,1.1), { hue:[20,35],   body:'round',  sat:50, ears:'round', eyeStyle:'sleepy', pattern:'belly' }),
+  sp('コアラッコ', B(0.8,1.0,0.8,1.1,1.0,1.4), { hue:[200,220], body:'round',  ears:'round', sat:20, pattern:'belly' }),
+  sp('ケロリン',   B(0.9,0.9,1.3,1.1,1.0,1.0), { hue:[100,135], body:'round',  pattern:'belly', mouth:'flat' }),
+  sp('シーサン',   B(1.2,1.0,1.0,0.9,1.2,1.0), { hue:[35,55],   body:'tall',   ears:'cat', tail:'fluffy', mouth:'fang', pattern:'spots' }),
+  sp('ゾウリン',   B(1.1,1.2,0.6,1.0,0.9,1.4), { hue:[210,235], body:'square', tail:'pointy', sat:25, ears:'droop', pattern:'belly' }),
+  sp('トゲボール', B(1.1,1.2,0.9,0.8,1.0,1.0), { hue:[260,290], body:'round',  horn:'two', pattern:'spots', sat:35 }),
+  sp('オムスビン', B(0.9,1.3,0.8,1.0,1.0,1.2), { hue:[30,60],   body:'tri',    sat:10, pattern:'stripes' }),
+  sp('ホシポン',   B(0.9,0.8,1.3,1.2,1.2,0.8), { hue:[45,60],   body:'diamond', eyeStyle:'happy' }),
+  sp('イワゴロン', B(1.2,1.5,0.5,0.8,0.9,1.2), { hue:[20,45],   body:'pebble', sat:15, pattern:'spots', mouth:'flat' }),
+  sp('メダマン',   B(0.8,0.9,1.1,1.4,1.3,0.9), { hue:[120,160], body:'round',  eyes:1, mouth:'flat' }),
+  sp('ミツメロン', B(0.9,0.8,1.2,1.4,1.2,0.8), { hue:[200,240], body:'ghost',  eyes:3 }),
+  sp('クマリン',   B(1.2,1.1,0.8,0.9,0.9,1.3), { hue:[40,55],   body:'tall',   ears:'round', sat:40, eyeStyle:'sleepy', pattern:'belly' }),
+  sp('イヌポチ',   B(1.0,0.9,1.2,0.9,1.2,1.0), { hue:[25,45],   body:'round',  ears:'droop', tail:'fluffy', sat:35, pattern:'spots' }),
+  sp('パンダロク', B(1.1,1.1,0.8,1.0,0.9,1.2), { hue:[0,360],   body:'round',  ears:'round', pattern:'spots', sat:5 }),
+  sp('リボンヌ',   B(0.8,0.8,1.3,1.2,1.1,0.9), { hue:[320,345], body:'round',  ears:'cat', acc:'ribbon' }),
+  sp('マフラン',   B(0.9,1.1,1.0,1.1,1.0,1.1), { hue:[190,220], body:'tall',   acc:'scarf' }),
+  sp('ハッパルン', B(0.8,1.0,1.1,1.3,1.0,1.0), { hue:[90,115],  body:'round',  acc:'leaf', pattern:'belly' }),
+  sp('サイボーグ', B(1.2,1.2,0.9,1.1,1.3,0.7), { hue:[210,240], body:'square', acc:'visor', sat:12 }),
+  sp('コアクマ',   B(1.2,0.8,1.3,1.1,1.0,0.8), { hue:[270,300], body:'blob',   horn:'two', tail:'devil' }),
+  sp('ツノウサ',   B(0.9,0.8,1.4,1.0,1.1,1.0), { hue:[330,355], body:'round',  ears:'rabbit', horn:'one' }),
+  sp('シカゴロウ', B(1.1,1.0,1.2,0.9,1.0,1.0), { hue:[25,40],   body:'tall',   horn:'antler', sat:45, pattern:'spots' }),
+  sp('トナカイン', B(1.0,1.1,1.1,1.0,1.0,1.1), { hue:[10,25],   body:'tall',   horn:'antler', acc:'scarf', sat:40 }),
+  sp('ホタルビン', B(0.8,0.8,1.2,1.3,1.2,0.9), { hue:[50,65],   body:'blob',   ears:'antenna', acc:'flame' }),
+  sp('カッパツ',   B(1.0,1.0,1.2,1.1,1.0,0.9), { hue:[150,175], body:'round',  acc:'leaf', mouth:'beak', pattern:'belly' }),
+  sp('ペンタワ',   B(0.9,1.2,0.8,1.0,1.1,1.2), { hue:[200,230], body:'tower',  mouth:'beak', pattern:'belly', sat:25 }),
+  sp('ロケットン', B(1.3,1.0,1.2,0.8,1.1,0.8), { hue:[0,20],    body:'tower',  acc:'flame', sat:12, pattern:'belly' }),
+  sp('オバキヌ',   B(0.8,0.7,1.3,1.3,1.1,0.9), { hue:[300,330], body:'ghost',  acc:'ribbon' }),
+  sp('デンキダマ', B(1.0,0.7,1.4,1.1,1.3,0.7), { hue:[48,58],   body:'diamond', ears:'antenna', eyeStyle:'angry' }),
+  sp('ユメバクー', B(0.8,1.0,0.9,1.4,1.0,1.2), { hue:[250,280], body:'pebble', pattern:'belly', eyeStyle:'sleepy', acc:'moon' }),
+  // --- 水辺の仲間 ---
+  sp('サメキバ',   B(1.4,0.9,1.2,0.7,1.1,0.9), { hue:[200,225], body:'fish',   mouth:'fang', sat:30, eyeStyle:'angry' }),
+  sp('イルカーナ', B(0.9,0.9,1.3,1.2,1.1,1.0), { hue:[190,215], body:'fish',   eyeStyle:'happy', pattern:'belly' }),
+  sp('クリオネル', B(0.7,0.7,1.3,1.4,1.1,0.9), { hue:[180,205], body:'ghost',  wings:'feather', sat:20, pattern:'belly' }),
+  sp('ヒトデスター', B(1.0,1.1,0.9,1.0,1.1,1.0), { hue:[0,25],  body:'diamond', pattern:'spots', eyeStyle:'happy' }),
+  sp('シェルルン', B(0.8,1.4,0.7,1.1,0.9,1.2), { hue:[320,345], body:'tri',    pattern:'stripes' }),
+  sp('アンコウチン', B(1.0,0.9,0.9,1.3,1.2,0.9), { hue:[230,255], body:'fish', ears:'antenna', eyes:1, sat:25, mouth:'fang' }),
+  sp('エビマル',   B(1.1,0.8,1.3,0.9,1.1,0.9), { hue:[5,25],    body:'blob',   horn:'two', pattern:'stripes' }),
+  sp('フグマル',   B(1.0,1.3,0.8,0.9,0.9,1.2), { hue:[25,45],   body:'round',  pattern:'spots', mouth:'open' }),
+  sp('ラッコロ',   B(0.9,1.0,1.1,1.1,1.0,1.1), { hue:[25,40],   body:'pebble', ears:'round', pattern:'belly', sat:30 }),
+  sp('ワニガブ',   B(1.4,1.1,0.8,0.7,1.0,1.1), { hue:[95,120],  body:'pebble', mouth:'fang', sat:40, pattern:'stripes', eyeStyle:'angry' }),
+  // --- 空の仲間 ---
+  sp('ツバメック', B(0.9,0.7,1.5,0.9,1.2,0.8), { hue:[215,240], body:'round',  wings:'feather', mouth:'beak', sat:45 }),
+  sp('フラミンガ', B(0.8,0.9,1.2,1.1,1.1,1.0), { hue:[330,350], body:'tower',  mouth:'beak', pattern:'belly' }),
+  sp('クジャクン', B(0.9,0.9,1.1,1.2,1.1,0.9), { hue:[160,185], body:'round',  wings:'feather', tail:'fluffy', pattern:'spots' }),
+  sp('カラスマル', B(1.1,0.8,1.3,1.1,1.1,0.7), { hue:[240,265], body:'round',  wings:'spiky', mouth:'beak', sat:8, eyeStyle:'angry' }),
+  sp('ハトッポ',   B(0.8,1.0,1.1,1.0,1.1,1.1), { hue:[90,115],  body:'round',  mouth:'beak', pattern:'belly', sat:15 }),
+  sp('インコリン', B(0.8,0.8,1.2,1.2,1.2,0.9), { hue:[95,120],  body:'round',  mouth:'beak', acc:'flower' }),
+  sp('モクモック', B(0.7,1.1,1.0,1.3,0.9,1.1), { hue:[200,225], body:'blob',   eyeStyle:'sleepy', sat:12 }),
+  sp('カミナリン', B(1.2,0.7,1.3,1.0,1.3,0.7), { hue:[45,58],   body:'diamond', ears:'antenna', pattern:'stripes', eyeStyle:'angry' }),
+  sp('ユキフワ',   B(0.7,1.1,1.0,1.2,0.9,1.2), { hue:[190,215], body:'blob',   acc:'snow', sat:8 }),
+  sp('ホシゾラン', B(0.8,0.8,1.2,1.4,1.0,0.9), { hue:[235,260], body:'ghost',  pattern:'spots' }),
+  // --- 森の仲間 ---
+  sp('リスチョロ', B(0.9,0.8,1.4,1.0,1.1,0.9), { hue:[15,32],   body:'round',  ears:'cat', tail:'fluffy', pattern:'belly', sat:50 }),
+  sp('タヌポン',   B(1.0,1.0,1.0,1.2,0.9,1.1), { hue:[20,38],   body:'round',  ears:'round', pattern:'belly', acc:'leaf', sat:35 }),
+  sp('キツネン',   B(1.0,0.8,1.3,1.2,1.2,0.8), { hue:[18,35],   body:'tall',   ears:'cat', tail:'fluffy', sat:60, pattern:'belly', eyeStyle:'happy' }),
+  sp('ハリネズン', B(1.1,1.3,0.8,0.9,1.0,1.0), { hue:[25,40],   body:'pebble', horn:'two', pattern:'spots', sat:30 }),
+  sp('フクロモモ', B(0.8,0.8,1.4,1.1,1.1,0.9), { hue:[280,305], body:'round',  ears:'round', wings:'feather', sat:25 }),
+  sp('カタツムリン', B(0.7,1.4,0.6,1.2,0.9,1.2), { hue:[95,120], body:'blob',  ears:'antenna', pattern:'shell' }),
+  sp('テントウム', B(0.9,1.0,1.2,0.9,1.2,0.9), { hue:[0,18],    body:'round',  ears:'antenna', pattern:'spots' }),
+  sp('クワガタン', B(1.4,1.2,0.9,0.7,1.0,0.9), { hue:[240,265], body:'square', horn:'two', sat:20, eyeStyle:'angry' }),
+  sp('キノコロン', B(0.8,1.1,0.8,1.4,0.9,1.1), { hue:[190,215], body:'round',  acc:'cap', sat:20 }),
+  sp('ドングリン', B(0.9,1.2,0.9,1.0,1.0,1.1), { hue:[25,40],   body:'tri',    acc:'leaf', sat:45, pattern:'belly' }),
+  // --- ほのお・大地の仲間 ---
+  sp('マグマロン', B(1.3,1.2,0.7,1.0,0.9,1.1), { hue:[5,22],    body:'pebble', acc:'flame', pattern:'spots' }),
+  sp('ヒノタマン', B(1.1,0.7,1.3,1.2,1.0,0.8), { hue:[15,35],   body:'ghost',  acc:'flame' }),
+  sp('ヨウガンダ', B(1.3,1.3,0.6,0.9,0.9,1.2), { hue:[8,25],    body:'square', pattern:'spots', sat:45, eyeStyle:'angry' }),
+  sp('サンドスン', B(1.0,1.2,0.9,0.9,1.0,1.1), { hue:[40,55],   body:'tri',    sat:25, pattern:'spots', eyeStyle:'sleepy' }),
+  sp('カセキオン', B(1.1,1.4,0.6,1.1,0.8,1.2), { hue:[30,48],   body:'pebble', horn:'antler', sat:18, pattern:'shell' }),
+  sp('エンビート', B(1.2,1.0,1.1,0.8,1.1,0.9), { hue:[0,18],    body:'round',  acc:'flame', wings:'spiky' }),
+  sp('ツチノコロ', B(1.0,1.0,1.2,1.1,1.0,0.9), { hue:[85,110],  body:'pebble', pattern:'stripes', sat:35 }),
+  sp('カザンボ',   B(1.3,1.1,0.7,1.0,0.9,1.2), { hue:[10,28],   body:'tri',    acc:'flame', sat:30, pattern:'spots' }),
+  // --- こおりの仲間 ---
+  sp('コオリッポ', B(0.9,1.1,1.1,1.1,1.0,0.9), { hue:[185,210], body:'diamond', sat:12, pattern:'stripes' }),
+  sp('シロクマン', B(1.3,1.1,0.8,0.9,0.9,1.3), { hue:[190,215], body:'tall',   ears:'round', acc:'snow', sat:6 }),
+  sp('ペンチビ',   B(0.8,1.0,1.1,1.0,1.1,1.1), { hue:[210,235], body:'round',  mouth:'beak', pattern:'belly', acc:'snow', sat:20 }),
+  sp('ユキダルマン', B(0.9,1.2,0.7,1.1,0.9,1.3), { hue:[0,360], body:'round',  acc:'snow', mouth:'flat', sat:5, pattern:'spots' }),
+  sp('ツララン',   B(1.0,1.0,1.0,1.2,1.1,0.8), { hue:[185,210], body:'tower',  eyeStyle:'sleepy', sat:15, pattern:'stripes' }),
+  sp('アザラシン', B(0.8,1.1,1.0,1.1,1.0,1.2), { hue:[195,220], body:'pebble', eyeStyle:'happy', pattern:'belly', sat:12 }),
+  // --- でんき・きかいの仲間 ---
+  sp('プラグン',   B(1.0,0.9,1.2,1.1,1.2,0.7), { hue:[48,60],   body:'square', ears:'antenna', pattern:'stripes', sat:30 }),
+  sp('ネジマキン', B(0.9,1.1,1.0,1.2,1.1,0.9), { hue:[155,180], body:'round',  ears:'antenna', pattern:'spots', sat:15 }),
+  sp('ピカリン',   B(0.9,0.7,1.5,1.0,1.3,0.7), { hue:[50,62],   body:'diamond', eyeStyle:'happy', tail:'pointy' }),
+  sp('ドリルン',   B(1.4,1.0,0.9,0.8,1.2,0.8), { hue:[25,45],   body:'tri',    horn:'one', sat:18, pattern:'stripes' }),
+  sp('テレビン',   B(0.8,1.1,0.8,1.4,1.1,0.9), { hue:[265,290], body:'square', acc:'visor', sat:25 }),
+  sp('ハグルマン', B(1.1,1.2,0.9,1.1,1.0,0.8), { hue:[40,60],   body:'round',  horn:'two', pattern:'stripes', sat:12 }),
+  // --- おはな・くさの仲間 ---
+  sp('オハナン',   B(0.8,0.9,1.1,1.3,1.0,1.1), { hue:[95,120],  body:'round',  acc:'flower', pattern:'belly' }),
+  sp('サクランボン', B(0.8,0.8,1.3,1.1,1.1,1.0), { hue:[330,350], body:'round', acc:'flower', pattern:'spots' }),
+  sp('タンポポン', B(0.7,0.9,1.2,1.2,1.1,1.0), { hue:[48,62],   body:'round',  acc:'flower', eyeStyle:'happy' }),
+  sp('バラエンヌ', B(1.1,0.9,1.1,1.2,1.0,0.9), { hue:[340,360], body:'tall',   acc:'flower', pattern:'stripes' }),
+  sp('マツボックン', B(0.9,1.3,0.8,0.9,1.0,1.2), { hue:[25,40], body:'tri',    pattern:'spots', sat:40 }),
+  sp('スイカボウ', B(1.0,1.1,0.9,1.0,0.9,1.2), { hue:[95,120],  body:'round',  pattern:'stripes', eyeStyle:'happy' }),
+  // --- よる・ゆうれいの仲間 ---
+  sp('ツキノワン', B(1.1,1.0,1.0,1.1,1.0,1.0), { hue:[250,275], body:'round',  acc:'moon', sat:30, ears:'round', pattern:'belly' }),
+  sp('ヨナキン',   B(0.8,0.7,1.3,1.3,1.1,0.9), { hue:[260,285], body:'ghost',  acc:'moon', eyeStyle:'sleepy' }),
+  sp('ネムリン',   B(0.6,1.1,0.9,1.4,0.9,1.2), { hue:[280,305], body:'blob',   eyeStyle:'sleepy', acc:'moon', sat:25 }),
+  sp('カゲボウズ', B(1.0,0.7,1.4,1.2,1.1,0.7), { hue:[240,265], body:'ghost',  eyes:1, sat:6, mouth:'flat' }),
+  sp('マヨナッカ', B(0.9,0.9,1.2,1.3,1.1,0.8), { hue:[270,295], body:'tall',   acc:'moon', sat:35, pattern:'spots' }),
+  sp('ドラキュリン', B(1.2,0.8,1.3,1.1,1.0,0.8), { hue:[340,360], body:'ghost', wings:'spiky', mouth:'fang', sat:30 }),
+  // --- たべものの仲間 ---
+  sp('プリンプ',   B(0.8,1.0,1.0,1.2,1.0,1.1), { hue:[40,55],   body:'tri',    pattern:'belly' }),
+  sp('ダンゴロン', B(0.9,1.2,0.8,1.0,1.0,1.2), { hue:[95,115],  body:'round',  pattern:'spots', sat:25 }),
+  sp('アメダマン', B(0.8,0.9,1.2,1.1,1.1,1.0), { hue:[300,325], body:'round',  pattern:'stripes', eyeStyle:'happy' }),
+  sp('パンコロ',   B(0.9,1.1,0.9,1.0,1.0,1.2), { hue:[30,45],   body:'pebble', pattern:'belly', sat:35 }),
+  sp('ソフトクン', B(0.7,0.9,1.1,1.2,1.1,1.1), { hue:[0,360],   body:'tri',    pattern:'belly', sat:15 }),
+  sp('モチモッチ', B(0.8,1.3,0.7,1.1,0.9,1.3), { hue:[0,360],   body:'blob',   eyeStyle:'sleepy', sat:8 }),
+  // --- きょうりゅうの仲間 ---
+  sp('チビザウル', B(1.2,1.0,1.1,0.8,1.0,1.0), { hue:[95,125],  body:'tall',   tail:'pointy', pattern:'spots', mouth:'fang' }),
+  sp('プテラノン', B(1.1,0.8,1.4,0.8,1.1,0.8), { hue:[195,220], body:'round',  wings:'spiky', mouth:'beak', sat:35 }),
+  sp('ブロントン', B(1.1,1.2,0.7,1.0,0.9,1.4), { hue:[140,165], body:'tower',  tail:'pointy', sat:30, pattern:'belly' }),
+  sp('トリケラン', B(1.3,1.3,0.7,0.8,0.9,1.1), { hue:[55,75],   body:'pebble', horn:'two', sat:30, pattern:'shell' }),
+  sp('ステゴロン', B(1.2,1.3,0.8,0.9,0.9,1.1), { hue:[150,175], body:'pebble', pattern:'stripes', tail:'pointy' }),
+  // ----- 伝説種 (18) ★4以上でのみ出現 -----
+  sp('ユニコーン',   B(1.1,1.0,1.3,1.3,1.1,1.1), { hue:[300,330], body:'tall',  horn:'long', tail:'fluffy', sat:15, pattern:'belly', eyeStyle:'happy' }, true),
+  sp('キングレオ',   B(1.5,1.1,1.1,0.9,1.1,1.2), { hue:[40,52],   body:'tall',  ears:'cat', tail:'fluffy', acc:'crown', pattern:'belly' }, true),
+  sp('セイリュウ',   B(1.3,1.1,1.2,1.3,1.0,1.1), { hue:[195,225], body:'tall',  horn:'two', wings:'spiky', tail:'pointy', pattern:'stripes' }, true),
+  sp('メタルキング', B(1.0,1.8,0.9,1.0,1.0,1.2), { hue:[200,220], body:'square', horn:'two', sat:5, eyeStyle:'angry', pattern:'shell' }, true),
+  sp('ホウオウ',     B(1.2,1.0,1.2,1.3,1.1,1.2), { hue:[160,190], body:'round', wings:'feather', tail:'pointy', acc:'crown', mouth:'beak', pattern:'belly' }, true),
+  sp('デビロン',     B(1.4,0.9,1.2,1.3,1.0,1.0), { hue:[270,300], body:'ghost', ears:'cat', horn:'two', wings:'spiky', tail:'pointy', eyeStyle:'angry', mouth:'fang' }, true),
+  sp('エンジェロ',   B(0.9,1.1,1.2,1.4,1.2,1.2), { hue:[45,60],   body:'round', wings:'feather', acc:'halo', sat:30, eyeStyle:'happy', pattern:'belly' }, true),
+  sp('リヴァイア',   B(1.4,1.2,1.0,1.1,1.0,1.3), { hue:[210,240], body:'fish',  horn:'two', pattern:'stripes', eyeStyle:'angry' }, true),
+  sp('ガイアドン',   B(1.5,1.5,0.6,0.9,0.9,1.4), { hue:[20,50],   body:'square', horn:'two', pattern:'shell', sat:35, mouth:'flat' }, true),
+  sp('クロノム',     B(1.0,1.2,1.2,1.5,1.2,1.1), { hue:[210,240], body:'diamond', acc:'crown', sat:20, mouth:'flat' }, true),
+  sp('オロチマル',   B(1.5,1.0,1.2,1.2,1.0,1.1), { hue:[100,140], body:'tall',  horn:'two', wings:'spiky', tail:'devil', eyeStyle:'angry', pattern:'stripes' }, true),
+  sp('スターリオ',   B(1.2,1.0,1.4,1.2,1.2,1.1), { hue:[200,230], body:'tall',  horn:'long', wings:'feather', tail:'fluffy', sat:20, pattern:'belly' }, true),
+  sp('ムゲンリュウ', B(1.4,1.1,1.2,1.3,1.0,1.2), { hue:[260,285], body:'tower', horn:'two', wings:'spiky', tail:'devil', eyeStyle:'angry' }, true),
+  sp('フェアリア',   B(0.9,1.0,1.4,1.4,1.2,1.0), { hue:[320,345], body:'diamond', wings:'feather', acc:'flower', eyeStyle:'happy' }, true),
+  sp('ジュピロス',   B(1.3,1.1,1.2,1.2,1.2,1.1), { hue:[220,245], body:'round', wings:'spiky', ears:'antenna', acc:'crown', pattern:'stripes' }, true),
+  sp('ヤマノヌシ',   B(1.4,1.4,0.7,1.2,0.9,1.4), { hue:[100,130], body:'pebble', horn:'antler', acc:'leaf', sat:40, pattern:'spots', eyeStyle:'sleepy' }, true),
+  sp('ギンガリオン', B(1.1,1.0,1.3,1.5,1.2,1.1), { hue:[235,260], body:'diamond', acc:'moon', wings:'feather', pattern:'spots' }, true),
+  sp('ホムラオウ',   B(1.5,1.0,1.2,1.1,1.1,1.2), { hue:[0,20],   body:'tall',  acc:'flame', wings:'spiky', tail:'devil', eyeStyle:'angry', pattern:'belly' }, true),
+];
+const NAME_A = ['ポコ','ガル','ティア','ズン','モコ','ライ','ピス','グラ','ネオ','ルル','バン','キラ','フウ','ドン','メル','ザク'];
+const NAME_B = ['タン','ゴン','リン','ドラ','ペン','マル','ロス','ミア','ボー','チェ','スケ','ニャ','ガー','ポン','ルト','ッチ'];
+const RARITY = [
+  { stars: '★',     mult: 0.85, prob: 0.40 },
+  { stars: '★★',    mult: 1.00, prob: 0.30 },
+  { stars: '★★★',   mult: 1.15, prob: 0.18 },
+  { stars: '★★★★',  mult: 1.30, prob: 0.09 },
+  { stars: '★★★★★', mult: 1.50, prob: 0.03 },
+];
+const STAT_KEYS = ['life','pow','int','acc','spd','def'];
+const STAT_NAMES = { life: 'ライフ', pow: 'ちから', int: 'かしこさ', acc: '命中', spd: '回避', def: '丈夫さ' };
+const STAT_COLORS = { life: '#e94560', pow: '#ff9f43', int: '#a29bfe', acc: '#53b8ff', spd: '#4ecca3', def: '#f5c518' };
+const RANKS = ['E','D','C','B','A','S'];
+const TOURNEYS = [
+  { rank: 'E', name: 'ルーキーカップ',   fee: 0,    prize: 800,   level: 1.0 },
+  { rank: 'D', name: 'ブロンズカップ',   fee: 100,  prize: 1500,  level: 1.6 },
+  { rank: 'C', name: 'シルバーカップ',   fee: 200,  prize: 3000,  level: 2.4 },
+  { rank: 'B', name: 'ゴールドカップ',   fee: 400,  prize: 5000,  level: 3.4 },
+  { rank: 'A', name: 'マスターズカップ', fee: 800,  prize: 9000,  level: 4.6 },
+  { rank: 'S', name: '伝説王者決定戦',   fee: 1500, prize: 20000, level: 6.0 },
+];
+const FUSE_COST = 500;
+
+// ---------- SVGモンスター描画・旧なめらか版 (未使用・戻したい時はこちらを monsterSVG に改名) ----------
+function monsterSVGSmooth(v, size) {
+  const sat = v.sat != null ? v.sat : 60;
+  const main = `hsl(${v.hue},${sat}%,55%)`;
+  const dark = `hsl(${v.hue},${sat}%,34%)`;
+  const light = `hsl(${v.hue},${Math.max(15, sat - 10)}%,80%)`;
+  const acc = `hsl(${v.hue2},70%,60%)`;
+  const SW = `stroke="${dark}" stroke-width="2"`;
+  const S = [];
+  // 覚醒オーラ (金色の光とキラキラ)
+  if (v.awake) {
+    S.push(`<circle cx="50" cy="54" r="45" fill="rgba(245,197,24,.13)"/>`);
+    S.push(`<circle cx="50" cy="54" r="36" fill="rgba(245,197,24,.16)"/>`);
+    S.push(`<path d="M14 22 L16 28 L22 30 L16 32 L14 38 L12 32 L6 30 L12 28 Z" fill="#f5c518"/>`);
+    S.push(`<path d="M86 12 L88 17 L93 19 L88 21 L86 26 L84 21 L79 19 L84 17 Z" fill="#f5c518"/>`);
+    S.push(`<path d="M87 72 L88.5 76 L92 77.5 L88.5 79 L87 83 L85.5 79 L82 77.5 L85.5 76 Z" fill="#f5c518"/>`);
+  }
+  // 影
+  S.push(`<ellipse cx="50" cy="89" rx="24" ry="4.5" fill="rgba(0,0,0,.35)"/>`);
+  // 翼 (体の後ろ)
+  if (v.wings === 'spiky') {
+    S.push(`<path d="M26 50 L4 30 L14 48 L2 46 L22 58 Z" fill="${dark}"/>`);
+    S.push(`<path d="M74 50 L96 30 L86 48 L98 46 L78 58 Z" fill="${dark}"/>`);
+  } else if (v.wings === 'feather') {
+    S.push(`<ellipse cx="17" cy="50" rx="15" ry="7" fill="${acc}" transform="rotate(-30 17 50)"/>`);
+    S.push(`<ellipse cx="83" cy="50" rx="15" ry="7" fill="${acc}" transform="rotate(30 83 50)"/>`);
+  }
+  // 尻尾 (体の後ろ)
+  if (v.tail === 'pointy') S.push(`<path d="M72 62 L92 50 L82 66 Z" fill="${main}" ${SW}/>`);
+  if (v.tail === 'fluffy') S.push(`<circle cx="80" cy="66" r="8" fill="${acc}"/>`);
+  // 耳 (体の後ろに描いて根元を隠す)
+  if (v.ears === 'cat') {
+    S.push(`<path d="M30 40 L24 16 L46 28 Z" fill="${main}" ${SW}/><path d="M70 40 L76 16 L54 28 Z" fill="${main}" ${SW}/>`);
+    S.push(`<path d="M31 34 L28 22 L40 28 Z" fill="${light}"/><path d="M69 34 L72 22 L60 28 Z" fill="${light}"/>`);
+  } else if (v.ears === 'rabbit') {
+    S.push(`<ellipse cx="38" cy="18" rx="6" ry="16" fill="${main}" ${SW}/><ellipse cx="62" cy="18" rx="6" ry="16" fill="${main}" ${SW}/>`);
+    S.push(`<ellipse cx="38" cy="19" rx="3" ry="11" fill="${light}"/><ellipse cx="62" cy="19" rx="3" ry="11" fill="${light}"/>`);
+  } else if (v.ears === 'antenna') {
+    S.push(`<line x1="42" y1="32" x2="36" y2="12" stroke="${dark}" stroke-width="2.5"/><circle cx="36" cy="10" r="4" fill="${acc}"/>`);
+    S.push(`<line x1="58" y1="32" x2="64" y2="12" stroke="${dark}" stroke-width="2.5"/><circle cx="64" cy="10" r="4" fill="${acc}"/>`);
+  }
+  // 角
+  if (v.horn === 'one')  S.push(`<path d="M44 32 L50 10 L56 32 Z" fill="${acc}" ${SW}/>`);
+  if (v.horn === 'long') S.push(`<path d="M46 32 L50 2 L54 32 Z" fill="${acc}" ${SW}/>`);
+  if (v.horn === 'two')  S.push(`<path d="M34 36 L26 14 L46 28 Z" fill="${acc}" ${SW}/><path d="M66 36 L74 14 L54 28 Z" fill="${acc}" ${SW}/>`);
+  // 体
+  if (v.body === 'round') S.push(`<ellipse cx="50" cy="56" rx="28" ry="27" fill="${main}" ${SW}/>`);
+  else if (v.body === 'blob') {
+    S.push(`<path d="M50 29 C70 29 79 44 76 60 C73 76 63 83 50 83 C37 83 27 76 24 60 C21 44 30 29 50 29 Z" fill="${main}" ${SW}/>`);
+    S.push(`<ellipse cx="34" cy="82" rx="5" ry="3" fill="${main}"/><ellipse cx="63" cy="83" rx="6" ry="3" fill="${main}"/>`);
+  }
+  else if (v.body === 'square') S.push(`<rect x="23" y="30" width="54" height="52" rx="12" fill="${main}" ${SW}/>`);
+  else if (v.body === 'tall') S.push(`<ellipse cx="50" cy="55" rx="23" ry="29" fill="${main}" ${SW}/>`);
+  else if (v.body === 'fish') {
+    S.push(`<path d="M68 56 L90 42 L86 56 L90 70 Z" fill="${acc}" ${SW}/>`);
+    S.push(`<ellipse cx="47" cy="56" rx="26" ry="21" fill="${main}" ${SW}/>`);
+  }
+  else if (v.body === 'ghost') S.push(`<path d="M27 56 C27 36 37 27 50 27 C63 27 73 36 73 56 L73 78 L65 71 L57 79 L50 71 L43 79 L35 71 L27 78 Z" fill="${main}" ${SW}/>`);
+  // 模様
+  if (v.pattern === 'spots') S.push(`<circle cx="38" cy="64" r="3.5" fill="${dark}"/><circle cx="58" cy="68" r="3" fill="${dark}"/><circle cx="64" cy="52" r="2.5" fill="${dark}"/>`);
+  if (v.pattern === 'stripes') S.push(`<path d="M30 68 Q50 74 70 68 L70 73 Q50 79 30 73 Z" fill="${dark}"/><path d="M32 58 Q50 63 68 58 L68 62 Q50 67 32 62 Z" fill="${dark}"/>`);
+  if (v.pattern === 'belly') S.push(`<ellipse cx="50" cy="66" rx="14" ry="11" fill="${light}"/>`);
+  // 目
+  const ey = 48;
+  const eyePos = v.eyes === 1 ? [[50, ey]] : v.eyes === 3 ? [[38, ey], [50, ey - 5], [62, ey]] : [[40, ey], [60, ey]];
+  for (const [x, y] of eyePos) {
+    if (v.eyeStyle === 'happy') {
+      S.push(`<path d="M${x - 5} ${y + 2} Q${x} ${y - 5} ${x + 5} ${y + 2}" fill="none" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>`);
+    } else {
+      S.push(`<circle cx="${x}" cy="${y}" r="6" fill="#fff"/><circle cx="${x}" cy="${y + 1}" r="3" fill="#222"/><circle cx="${x + 1}" cy="${y - 1}" r="1.2" fill="#fff"/>`);
+      if (v.eyeStyle === 'angry') {
+        const d = x <= 50 ? 1 : -1;
+        S.push(`<line x1="${x - 6 * d}" y1="${y - 8}" x2="${x + 5 * d}" y2="${y - 4}" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>`);
+      }
+      if (v.eyeStyle === 'sleepy') S.push(`<rect x="${x - 6.5}" y="${y - 7}" width="13" height="5" rx="2" fill="${main}"/>`);
+    }
+  }
+  // 口
+  const my = 64;
+  if (v.mouth === 'smile') S.push(`<path d="M44 ${my} Q50 ${my + 6} 56 ${my}" fill="none" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>`);
+  else if (v.mouth === 'fang') {
+    S.push(`<path d="M44 ${my} Q50 ${my + 6} 56 ${my}" fill="none" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>`);
+    S.push(`<path d="M46 ${my + 1} L48 ${my + 6} L50 ${my + 1} Z" fill="#fff"/>`);
+  }
+  else if (v.mouth === 'open') S.push(`<ellipse cx="50" cy="${my + 2}" rx="5.5" ry="4.5" fill="#7a2030"/>`);
+  else if (v.mouth === 'flat') S.push(`<line x1="45" y1="${my + 1}" x2="55" y2="${my + 1}" stroke="#222" stroke-width="2.5" stroke-linecap="round"/>`);
+  else if (v.mouth === 'beak') S.push(`<path d="M43 ${my - 6} L50 ${my + 4} L57 ${my - 6} Z" fill="#f5a623" stroke="#b87400" stroke-width="1.5"/>`);
+  // アクセサリー
+  if (v.acc === 'crown') S.push(`<path d="M38 24 L40 12 L46 19 L50 9 L54 19 L60 12 L62 24 Z" fill="#f5c518" stroke="#a8860b" stroke-width="1.5"/>`);
+  if (v.acc === 'cap') S.push(`<path d="M24 38 Q50 8 76 38 Q50 46 24 38 Z" fill="${acc}" ${SW}/><circle cx="38" cy="28" r="3" fill="#fff"/><circle cx="56" cy="23" r="3.5" fill="#fff"/><circle cx="66" cy="32" r="2.5" fill="#fff"/>`);
+  if (v.acc === 'flame') S.push(`<path d="M50 28 C44 20 48 12 50 4 C52 10 58 16 54 24 C53 26 51 27 50 28 Z" fill="#ff9f43" stroke="#e94560" stroke-width="1.5"/>`);
+  if (v.acc === 'halo') S.push(`<ellipse cx="50" cy="11" rx="13" ry="4" fill="none" stroke="#f5c518" stroke-width="3"/>`);
+  return `<svg viewBox="0 0 100 100" width="${size}" height="${size}" xmlns="http://www.w3.org/2000/svg">${S.join('')}</svg>`;
+}
+
+// ---------- SVGモンスター描画・ドット絵版 (24×24ピクセルグリッド) ----------
+function monsterSVG(v, size) {
+  const sat = v.sat != null ? v.sat : 60;
+  const MAIN = `hsl(${v.hue},${sat}%,55%)`;
+  const DARK = `hsl(${v.hue},${sat}%,36%)`;
+  const LIGHT = `hsl(${v.hue},${Math.max(15, sat - 10)}%,80%)`;
+  const ACC = `hsl(${v.hue2},70%,60%)`;
+  const BLACK = '#1c1c28', WHITE = '#ffffff', GOLD = '#f5c518', ORANGE = '#ff9f43', PINK = '#f78fb3', RED = '#7a2030';
+  const N = 24;
+  const g = Array.from({ length: N }, () => Array(N).fill(null));
+  const px = (x, y, c) => { if (x >= 0 && x < N && y >= 0 && y < N) g[y][x] = c; };
+  const pxIf = (x, y, c) => { if (x >= 0 && x < N && y >= 0 && y < N && g[y][x] === MAIN) g[y][x] = c; };
+  const ell = (cx, cy, rx, ry, c) => {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const dx = (x - cx) / rx, dy = (y - cy) / ry;
+      if (dx * dx + dy * dy <= 1) g[y][x] = c;
+    }
+  };
+  const ellIf = (cx, cy, rx, ry, c) => {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const dx = (x - cx) / rx, dy = (y - cy) / ry;
+      if (dx * dx + dy * dy <= 1 && g[y][x] === MAIN) g[y][x] = c;
+    }
+  };
+  const rect = (x0, y0, x1, y1, c) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) px(x, y, c); };
+  const M = x => 23 - x; // 左右ミラー
+
+  // 影
+  rect(7, 22, 16, 22, 'rgba(0,0,0,.30)');
+
+  // ---- 翼 (体の後ろ) ----
+  if (v.wings === 'spiky') {
+    for (let i = 0; i < 4; i++) for (let y = 10 + i; y <= 16 - i; y++) { px(1 + i, y, DARK); px(M(1 + i), y, DARK); }
+  } else if (v.wings === 'feather') {
+    ell(2.5, 12, 2.7, 2.0, ACC); ell(21.5 - 1, 12, 2.7, 2.0, ACC);
+    ell(3.5, 15, 2.3, 1.6, ACC); ell(19.5, 15, 2.3, 1.6, ACC);
+  }
+
+  // ---- 尻尾 (体の後ろ・右側) ----
+  if (v.tail === 'pointy') {
+    for (const [x, y] of [[19, 16], [20, 15], [20, 16], [21, 14], [21, 15], [22, 13], [22, 14]]) px(x, y, MAIN);
+  } else if (v.tail === 'fluffy') {
+    ell(20, 16.5, 2.4, 2.4, ACC);
+  } else if (v.tail === 'devil') {
+    px(19, 18, DARK); px(20, 17, DARK); px(21, 16, DARK);
+    px(21, 15, ACC); px(20, 14, ACC); px(21, 14, ACC); px(22, 14, ACC); px(21, 13, ACC);
+  }
+
+  // ---- 体 ----
+  if (v.body === 'round') {
+    ell(11.5, 14, 7.7, 7.1, DARK); ell(11.5, 13.4, 7.3, 6.6, MAIN);
+  } else if (v.body === 'blob') {
+    ell(11.5, 14.6, 8.1, 6.5, DARK); ell(11.5, 13.9, 7.7, 6.0, MAIN);
+    px(5, 21, MAIN); px(6, 21, MAIN); px(16, 21, MAIN); px(17, 21, MAIN); px(11, 21, MAIN);
+  } else if (v.body === 'square') {
+    rect(4, 7, 19, 20, DARK);
+    px(4, 7, null); px(19, 7, null); px(4, 20, null); px(19, 20, null);
+    rect(5, 8, 18, 19, MAIN);
+  } else if (v.body === 'tall') {
+    ell(11.5, 13.5, 6.4, 8.8, DARK); ell(11.5, 12.9, 6.0, 8.2, MAIN);
+  } else if (v.body === 'fish') {
+    for (const [x, y] of [[19, 13], [19, 14], [19, 15], [20, 12], [20, 13], [20, 15], [20, 16], [21, 10], [21, 11], [21, 12], [21, 16], [21, 17], [21, 18]]) px(x, y, ACC);
+    ell(10.5, 14, 7.3, 6.0, DARK); ell(10.5, 13.4, 6.9, 5.5, MAIN);
+  } else if (v.body === 'ghost') {
+    ell(11.5, 11.5, 7.5, 6.5, DARK); rect(4, 11, 19, 19, DARK);
+    ell(11.5, 11, 7.1, 6.1, MAIN); rect(5, 11, 18, 18, MAIN);
+    for (let x = 5; x <= 18; x++) if ((x - 5) % 4 < 2) px(x, 19, MAIN); // 裾のギザギザ
+  } else if (v.body === 'tri') { // おにぎり型
+    for (let y = 7; y <= 20; y++) { const hw = 0.8 + (y - 7) * 0.52; for (let x = 0; x < N; x++) if (Math.abs(x - 11.5) <= hw) px(x, y, DARK); }
+    for (let y = 7; y <= 19; y++) { const hw = 0.5 + (y - 7) * 0.5;  for (let x = 0; x < N; x++) if (Math.abs(x - 11.5) <= hw) px(x, y, MAIN); }
+  } else if (v.body === 'diamond') { // ひし形 (星のかけら型)
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (Math.abs(x - 11.5) + Math.abs(y - 14) * 1.15 <= 8.6) px(x, y, DARK);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (Math.abs(x - 11.5) + Math.abs(y - 13.5) * 1.15 <= 7.9) px(x, y, MAIN);
+  } else if (v.body === 'pebble') { // 平たい岩型
+    ell(11.5, 15.5, 8.6, 5.4, DARK); ell(11.5, 15, 8.2, 4.9, MAIN);
+  } else if (v.body === 'tower') { // のっぽ型
+    ell(11.5, 8, 6.4, 4.2, DARK); rect(5, 8, 18, 20, DARK);
+    ell(11.5, 7.6, 6.0, 3.8, MAIN); rect(6, 8, 17, 19, MAIN);
+  }
+
+  // ---- あんよ (地面に立つ体型のみ) ----
+  if (['round', 'tall', 'square', 'tri', 'tower'].includes(v.body)) {
+    px(8, 21, DARK); px(9, 21, DARK); px(14, 21, DARK); px(15, 21, DARK);
+  }
+
+  // ---- 模様 (体のピクセルだけ上書き) ----
+  if (v.pattern === 'spots') {
+    pxIf(7, 15, DARK); pxIf(8, 15, DARK); pxIf(7, 16, DARK); pxIf(8, 16, DARK);
+    pxIf(14, 17, DARK); pxIf(15, 17, DARK); pxIf(15, 11, DARK); pxIf(16, 11, DARK);
+  } else if (v.pattern === 'stripes') {
+    for (let x = 4; x <= 19; x++) { pxIf(x, 16, DARK); pxIf(x, 18, DARK); }
+  } else if (v.pattern === 'belly') {
+    ellIf(11.5, 16.5, 4.0, 3.2, LIGHT);
+  } else if (v.pattern === 'shell') { // 甲羅・装甲のリング
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const o = ((x - 11.5) / 5.4) ** 2 + ((y - 15.5) / 4.0) ** 2 <= 1;
+      const i2 = ((x - 11.5) / 3.4) ** 2 + ((y - 15.5) / 2.3) ** 2 <= 1;
+      if (o && !i2 && g[y][x] === MAIN) g[y][x] = DARK;
+    }
+    pxIf(11, 15, DARK); pxIf(12, 15, DARK); pxIf(11, 16, DARK); pxIf(12, 16, DARK);
+  }
+
+  // ---- 耳 (体の上) ----
+  if (v.ears === 'cat') {
+    for (const [x, y] of [[5, 5], [5, 6], [6, 5], [6, 6], [6, 7], [7, 6], [7, 7], [7, 8], [8, 8]]) { px(x, y, MAIN); px(M(x), y, MAIN); }
+    px(6, 6, LIGHT); px(M(6), 6, LIGHT);
+  } else if (v.ears === 'rabbit') {
+    rect(6, 1, 8, 8, MAIN); rect(7, 2, 7, 6, LIGHT);
+    rect(15, 1, 17, 8, MAIN); rect(16, 2, 16, 6, LIGHT);
+  } else if (v.ears === 'antenna') {
+    px(8, 7, DARK); px(7, 6, DARK); px(7, 5, DARK); px(7, 4, DARK);
+    px(M(8), 7, DARK); px(M(7), 6, DARK); px(M(7), 5, DARK); px(M(7), 4, DARK);
+    rect(6, 2, 7, 3, ACC); rect(16, 2, 17, 3, ACC);
+  } else if (v.ears === 'round') { // くまさん耳
+    ell(6, 6.5, 2.3, 2.3, MAIN); ell(17, 6.5, 2.3, 2.3, MAIN);
+    px(6, 6, LIGHT); px(17, 6, LIGHT);
+  } else if (v.ears === 'droop') { // たれ耳
+    rect(3, 9, 4, 15, MAIN); px(3, 16, MAIN); px(4, 16, MAIN);
+    rect(19, 9, 20, 15, MAIN); px(19, 16, MAIN); px(20, 16, MAIN);
+    px(4, 10, LIGHT); px(4, 11, LIGHT); px(19, 10, LIGHT); px(19, 11, LIGHT);
+  }
+
+  // ---- 角 ----
+  if (v.horn === 'one') { rect(11, 3, 12, 6, ACC); px(11, 2, ACC); px(12, 2, ACC); }
+  if (v.horn === 'long') { rect(11, 0, 12, 6, ACC); px(11, 1, LIGHT); px(12, 3, LIGHT); }
+  if (v.horn === 'two') {
+    for (const [x, y] of [[8, 6], [8, 5], [7, 5], [7, 4], [7, 3], [6, 3], [6, 2]]) { px(x, y, ACC); px(M(x), y, ACC); }
+  }
+  if (v.horn === 'antler') { // 枝角
+    for (const [x, y] of [[8, 6], [8, 5], [8, 4], [8, 3], [7, 3], [6, 2], [9, 2]]) { px(x, y, ACC); px(M(x), y, ACC); }
+  }
+
+  // ---- 目 ----
+  const EY = 11;
+  const eyeXs = v.eyes === 1 ? [11] : v.eyes === 3 ? [6, 11, 16] : [8, 14];
+  for (const ex of eyeXs) {
+    if (v.eyeStyle === 'happy') {
+      px(ex, EY + 1, BLACK); px(ex + 1, EY, BLACK); px(ex + 2, EY + 1, BLACK);
+    } else if (v.eyeStyle === 'sleepy') {
+      px(ex, EY + 1, BLACK); px(ex + 1, EY + 1, BLACK);
+    } else {
+      rect(ex, EY, ex + 1, EY + 1, BLACK); px(ex, EY, WHITE);
+      if (v.eyeStyle === 'angry') { px(ex, EY, BLACK); px(ex + (ex <= 11 ? 1 : 0), EY - 1, BLACK); }
+    }
+  }
+  // ほっぺ
+  if (v.eyeStyle === 'happy' || v.eyeStyle === 'normal') { pxIf(6, 14, PINK); pxIf(17, 14, PINK); }
+
+  // ---- 口 ----
+  if (v.mouth === 'smile') {
+    px(10, 16, BLACK); px(13, 16, BLACK); px(11, 17, BLACK); px(12, 17, BLACK);
+  } else if (v.mouth === 'fang') {
+    px(10, 16, BLACK); px(13, 16, BLACK); px(11, 17, BLACK); px(12, 17, BLACK); px(10, 17, WHITE);
+  } else if (v.mouth === 'open') {
+    rect(10, 16, 13, 18, BLACK); rect(11, 17, 12, 18, RED);
+  } else if (v.mouth === 'flat') {
+    rect(10, 17, 13, 17, BLACK);
+  } else if (v.mouth === 'beak') {
+    rect(10, 15, 13, 16, ORANGE); px(11, 17, ORANGE); px(12, 17, ORANGE);
+  }
+
+  // ---- アクセサリー ----
+  if (v.acc === 'cap') {
+    ell(11.5, 6, 8.2, 3.4, ACC);
+    px(8, 5, WHITE); px(13, 4, WHITE); px(15, 6, WHITE);
+  } else if (v.acc === 'crown') {
+    rect(8, 3, 15, 4, GOLD); px(8, 2, GOLD); px(11, 2, GOLD); px(12, 2, GOLD); px(15, 2, GOLD);
+  } else if (v.acc === 'flame') {
+    px(11, 5, ORANGE); px(12, 5, ORANGE); px(11, 4, ORANGE); px(12, 3, ORANGE); px(11, 2, ORANGE); px(12, 4, GOLD);
+  } else if (v.acc === 'halo') {
+    rect(8, 1, 15, 1, GOLD); px(7, 2, GOLD); px(16, 2, GOLD);
+  } else if (v.acc === 'ribbon') { // 頭のリボン
+    for (const [x, y] of [[9, 2], [9, 3], [9, 4], [10, 3], [10, 4], [13, 3], [13, 4], [14, 2], [14, 3], [14, 4], [11, 3], [12, 3], [11, 4], [12, 4]]) px(x, y, ACC);
+    px(11, 3, WHITE);
+  } else if (v.acc === 'scarf') { // マフラー
+    for (let x = 6; x <= 17; x++) pxIf(x, 18, ACC);
+    px(16, 19, ACC); px(16, 20, ACC);
+  } else if (v.acc === 'leaf') { // 頭の葉っぱ
+    px(12, 4, '#6abe30'); px(13, 3, '#6abe30'); px(13, 4, '#6abe30'); px(14, 3, '#6abe30');
+    px(11, 5, '#4c8b2b');
+  } else if (v.acc === 'visor') { // ロボのバイザー (目を覆う)
+    rect(6, 10, 17, 12, '#4dd7ff');
+    px(9, 11, '#155d7a'); px(14, 11, '#155d7a');
+  } else if (v.acc === 'flower') { // 頭のおはな
+    px(11, 2, WHITE); px(13, 2, WHITE); px(12, 1, WHITE); px(12, 3, WHITE); px(12, 2, GOLD);
+    px(12, 4, '#4c8b2b');
+  } else if (v.acc === 'snow') { // 頭に積もったゆき (平たく)
+    ell(11.5, 6.8, 6.6, 1.9, WHITE);
+    px(6, 8, WHITE); px(10, 9, WHITE); px(15, 8, WHITE); px(17, 7, WHITE);
+  } else if (v.acc === 'moon') { // 三日月
+    px(13, 2, GOLD); px(14, 3, GOLD); px(15, 4, GOLD); px(14, 5, GOLD); px(13, 6, GOLD);
+  }
+
+  // ---- 伝説種の金の星 (右上) ----
+  if (v.rare) {
+    px(21, 2, GOLD); px(20, 3, GOLD); px(22, 3, GOLD); px(21, 4, GOLD); px(21, 3, WHITE);
+  }
+  // ---- 覚醒キラキラ ----
+  if (v.awake) {
+    for (const [x, y] of [[3, 4], [20, 6]]) {
+      px(x, y, GOLD); px(x - 1, y, GOLD); px(x + 1, y, GOLD); px(x, y - 1, GOLD); px(x, y + 1, GOLD);
+    }
+    px(2, 15, GOLD); px(21, 17, GOLD);
+  }
+
+  // ---- 行ごとにランレングス圧縮してrect出力 ----
+  let rects = '';
+  for (let y = 0; y < N; y++) {
+    let x = 0;
+    while (x < N) {
+      const c = g[y][x];
+      if (!c) { x++; continue; }
+      let x2 = x;
+      while (x2 + 1 < N && g[y][x2 + 1] === c) x2++;
+      rects += `<rect x="${x}" y="${y}" width="${x2 - x + 1}" height="1" fill="${c}"/>`;
+      x = x2 + 1;
+    }
+  }
+  const glow = v.awake ? `<circle cx="12" cy="13" r="11" fill="rgba(245,197,24,.16)"/>` : '';
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${glow}${rects}</svg>`;
+}
+
+// ---------- 御利益タイム (QRごとの隠し覚醒条件: 曜日×3時間の窓) ----------
+function luckyWindow(code) {
+  const [h1, h2] = hashStr('LUCKY:' + code);
+  return { day: h1 % 7, hour: 8 + (h2 % 12) }; // 開始8〜19時の3時間窓
+}
+function isLuckyNow(code, now) {
+  const w = luckyWindow(code);
+  return now.getDay() === w.day && now.getHours() >= w.hour && now.getHours() < w.hour + 3;
+}
+
+// ---------- モンスター生成 (決定論的) ----------
+function generateMonster(code, awake) {
+  const [h1, h2] = hashStr(code);
+  const rng = makeRng(h1 ^ (h2 << 7));
+  // レア度を先に決定 → ★4以上なら伝説種プールの可能性
+  let r = rng(), ri = 0, accP = 0;
+  for (let i = 0; i < RARITY.length; i++) { accP += RARITY[i].prob; ri = i; if (r < accP) break; }
+  const rarity = RARITY[ri];
+  const normals = SPECIES.filter(s => !s.rare), rares = SPECIES.filter(s => s.rare);
+  let pool = normals;
+  if (ri === 4) pool = rares;                       // ★5 → 必ず伝説種
+  else if (ri === 3 && rng() < 0.30) pool = rares;  // ★4 → 30%で伝説種
+  const spDef = pool[Math.floor(rng() * pool.length)];
+  const name = NAME_A[Math.floor(rng() * NAME_A.length)] + NAME_B[Math.floor(rng() * NAME_B.length)];
+  const stats = {}, talent = {};
+  const rareMult = spDef.rare ? 1.12 : 1.0;
+  for (const k of STAT_KEYS) {
+    const base = 60 + rng() * 80; // 60〜140
+    stats[k] = Math.round(base * spDef.bias[k] * rarity.mult * rareMult);
+  }
+  for (const k of STAT_KEYS) talent[k] = 0.8 + rng() * 0.6;
+  const lifespan = Math.round(250 + rng() * 150); // 250〜400週
+  // 見た目: 種族プリセット + 個体差
+  const vd = spDef.vis;
+  const visual = {
+    body:  vd.body  || 'round',
+    ears:  vd.ears  || 'none',
+    horn:  vd.horn  || 'none',
+    wings: vd.wings || 'none',
+    tail:  vd.tail  || 'none',
+    acc:   vd.acc   || 'none',
+    hue:  Math.round(vd.hue[0] + rng() * (vd.hue[1] - vd.hue[0])) % 360,
+    hue2: Math.round(rng() * 360),
+    sat:  vd.sat != null ? vd.sat : 50 + Math.round(rng() * 25),
+    eyes: vd.eyes || (rng() < 0.07 ? 1 : rng() < 0.06 ? 3 : 2),
+    eyeStyle: vd.eyeStyle || ['normal','normal','happy','angry','sleepy'][Math.floor(rng() * 5)],
+    mouth:    vd.mouth    || ['smile','smile','fang','open','flat'][Math.floor(rng() * 5)],
+    pattern:  vd.pattern  || ['none','none','spots','stripes','belly'][Math.floor(rng() * 5)],
+  };
+  if (spDef.rare) visual.rare = true; // 伝説種は金の星マーク付き
+  // 覚醒: 御利益タイムに読み込まれた個体は色が変わり全ステ1.25倍
+  if (awake) {
+    for (const k of STAT_KEYS) stats[k] = Math.round(stats[k] * 1.25);
+    visual.hue = (visual.hue + 40) % 360;
+    visual.awake = true;
+  }
+  return {
+    code, name,
+    species: spDef.name, rare: spDef.rare, fused: false, parents: null,
+    awake: !!awake,
+    rarity: rarity.stars,
+    visual, stats, talent, lifespan,
+    week: 0, fatigue: 0, rank: 0, wins: 0,
+    retired: false,
+  };
+}
+
+// ---------- 融合生成 (これも決定論的: 同じ2体なら同じ結果) ----------
+function generateFusion(a0, b0) {
+  const pair = [a0, b0].sort();
+  const code = 'FUSE:' + JSON.stringify(pair);
+  const pA = regen(pair[0]), pB = regen(pair[1]);
+  const [h1, h2] = hashStr(code);
+  const rng = makeRng(h1 ^ (h2 << 7));
+  const name = pA.name.slice(0, Math.ceil(pA.name.length / 2)) + pB.name.slice(Math.floor(pB.name.length / 2));
+  const species = pA.species.slice(0, Math.ceil(pA.species.length / 2)) + pB.species.slice(Math.floor(pB.species.length / 2));
+  const stats = {}, talent = {};
+  for (const k of STAT_KEYS) {
+    stats[k] = Math.round((pA.stats[k] + pB.stats[k]) / 2 * 1.15);
+    talent[k] = Math.min(1.5, (pA.talent[k] + pB.talent[k]) / 2 + 0.15);
+  }
+  let ri = Math.max(RARITY.findIndex(x => x.stars === pA.rarity), RARITY.findIndex(x => x.stars === pB.rarity));
+  if (ri < RARITY.length - 1 && rng() < 0.3) ri++;
+  const vA = pA.visual, vB = pB.visual;
+  const visual = {
+    body: vA.body,
+    ears: vB.ears, horn: vB.horn !== 'none' ? vB.horn : vA.horn,
+    wings: rng() < 0.5 ? vA.wings : vB.wings,
+    tail: vB.tail !== 'none' ? vB.tail : vA.tail,
+    acc: vA.acc !== 'none' ? vA.acc : vB.acc,
+    hue: vA.hue, hue2: vB.hue,
+    sat: Math.round((vA.sat + vB.sat) / 2),
+    eyes: vB.eyes,
+    eyeStyle: rng() < 0.5 ? vA.eyeStyle : vB.eyeStyle,
+    mouth: vA.mouth, pattern: vB.pattern !== 'none' ? vB.pattern : vA.pattern,
+    rare: pA.rare || pB.rare,
+  };
+  return {
+    code, name, species,
+    rare: pA.rare || pB.rare, fused: true, parents: [pA.name, pB.name],
+    rarity: RARITY[ri].stars,
+    visual, stats, talent,
+    lifespan: Math.round((pA.lifespan + pB.lifespan) / 2 + 20),
+    week: 0, fatigue: 0, rank: 0, wins: 0,
+    retired: false,
+  };
+}
+
+// コード → モンスター (FUSEコードなら再帰的に融合を再現)
+function regen(code, awake) {
+  if (code.startsWith('FUSE:')) {
+    const [a, b] = JSON.parse(code.slice(5));
+    return generateFusion(a, b);
+  }
+  return generateMonster(code, awake);
+}
+
+function speciesLabel(o) {
+  return escapeHtml(o.species) + '族' +
+    (o.fused ? '<span class="tag-fused">〈合成種〉</span>' : o.rare ? '<span class="tag-legend">〈伝説種〉</span>' : '') +
+    (o.awake ? '<span class="tag-awake">〈覚醒〉</span>' : '');
+}
+
+// 図鑑用: 種族の代表的な見た目 (個体差なしの標準形)
+function speciesRep(sp) {
+  const vd = sp.vis;
+  return {
+    body: vd.body || 'round', ears: vd.ears || 'none', horn: vd.horn || 'none',
+    wings: vd.wings || 'none', tail: vd.tail || 'none', acc: vd.acc || 'none',
+    hue: Math.round((vd.hue[0] + vd.hue[1]) / 2), hue2: (vd.hue[0] + 150) % 360,
+    sat: vd.sat != null ? vd.sat : 60, eyes: vd.eyes || 2,
+    eyeStyle: vd.eyeStyle || 'normal', mouth: vd.mouth || 'smile', pattern: vd.pattern || 'none',
+    rare: sp.rare,
+  };
+}
+
+// ---------- ともだち対戦用: モンスター⇔QRコード変換 ----------
+function b64encode(s) { return btoa(unescape(encodeURIComponent(s))); }
+function b64decode(s) { return decodeURIComponent(escape(atob(s))); }
+function monsterSig(json) {
+  const [h1, h2] = hashStr('QMF-SIG:' + json);
+  return h1.toString(36) + h2.toString(36);
+}
+function encodeMonsterQR(m) {
+  const v = m.visual;
+  const payload = {
+    n: m.name, s: m.species, r: m.rarity,
+    st: STAT_KEYS.map(k => m.stats[k]),
+    v: [v.body, v.ears, v.horn, v.wings, v.tail, v.acc, v.hue, v.hue2, v.sat, v.eyes, v.eyeStyle, v.mouth, v.pattern, v.awake ? 1 : 0],
+    w: m.wins || 0, rk: m.rank || 0, lg: m.rare ? 1 : 0, f: m.fused ? 1 : 0,
+  };
+  const json = JSON.stringify(payload);
+  return 'MON:' + monsterSig(json) + ':' + b64encode(json);
+}
+function decodeMonsterQR(code) {
+  try {
+    const rest = code.slice(4);
+    const i = rest.indexOf(':');
+    const json = b64decode(rest.slice(i + 1));
+    if (monsterSig(json) !== rest.slice(0, i)) return null; // 改ざんチェック
+    const p = JSON.parse(json);
+    const stats = {};
+    STAT_KEYS.forEach((k, j) => { stats[k] = Math.max(1, Math.min(9999, Math.round(p.st[j]))); });
+    const [body, ears, horn, wings, tail, acc, hue, hue2, sat, eyes, eyeStyle, mouth, pattern, awake] = p.v;
+    return {
+      name: String(p.n).slice(0, 12), species: String(p.s).slice(0, 12), rarity: p.r,
+      stats,
+      visual: { body, ears, horn, wings, tail, acc, hue, hue2, sat, eyes, eyeStyle, mouth, pattern, awake: !!awake },
+      wins: p.w || 0, rank: Math.min(p.rk || 0, RANKS.length - 1), rare: !!p.lg, fused: !!p.f, awake: !!awake,
+    };
+  } catch (e) { return null; }
+}
+
+// ---------- ゲーム状態 ----------
+const game = {
+  state: null,
+  battle: null,
+  videoStream: null,
+  scanTimer: null,
+  fuseSel: [],
+
+  // ===== 保存/読込 =====
+  load() {
+    try {
+      const raw = localStorage.getItem('qr-monster-farm');
+      this.state = raw ? JSON.parse(raw) : null;
+    } catch (e) { this.state = null; }
+    if (!this.state) this.state = { money: 1000, monster: null, dex: [], logs: [] };
+    // 図鑑の発見記録 (種族名 → true)。旧セーブは召喚履歴から復元
+    if (!this.state.found) {
+      this.state.found = {};
+      const mark = (spName) => { if (SPECIES.some(s => s.name === spName)) this.state.found[spName] = true; };
+      for (const d of this.state.dex) if (!d.fused) mark(d.species);
+      if (this.state.monster && !this.state.monster.fused) mark(this.state.monster.species);
+    }
+    // 旧バージョンのセーブ (visualなし) を移行
+    const m = this.state.monster;
+    if (m && !m.visual) {
+      const g = regen(m.code);
+      m.visual = g.visual; m.species = g.species; m.rare = g.rare; m.fused = !!m.fused;
+    }
+    for (const d of this.state.dex) {
+      if (!d.visual) {
+        const g = regen(d.code);
+        d.visual = g.visual; d.name = g.name; d.species = g.species;
+        d.rarity = g.rarity; d.rare = g.rare; d.fused = g.fused; d.parents = g.parents;
+      }
+    }
+  },
+  save() { localStorage.setItem('qr-monster-farm', JSON.stringify(this.state)); },
+
+  log(msg, cls) {
+    this.state.logs.unshift({ msg, cls: cls || '' });
+    this.state.logs = this.state.logs.slice(0, 60);
+    this.renderLog();
+  },
+
+  // ===== 召喚 =====
+  summonFromCode(code, forceAwake) {
+    code = (code || '').trim();
+    if (!code) return;
+    // ともだちのモンスターQRなら召喚ではなく対戦へ
+    if (code.startsWith('MON:')) { this.startFriendBattle(code); return; }
+    this.stopCamera();
+    const isFuse = code.startsWith('FUSE:');
+    if (isFuse && this.state.money < FUSE_COST) { alert(`融合には${FUSE_COST}G必要！大会で賞金を稼ごう。`); return; }
+    const now = new Date();
+    // 御利益タイム判定 (図鑑からの再召喚は捕まえた時の姿を引き継ぐ)
+    const awake = isFuse ? false : (forceAwake != null ? forceAwake : isLuckyNow(code, now));
+    const cur = this.state.monster;
+    if (cur && !cur.retired) {
+      if (!confirm(`現在育成中の「${cur.name}」とお別れして、新しいモンスターを召喚しますか？`)) return;
+      this.archiveMonster(cur);
+    }
+    if (isFuse) this.state.money -= FUSE_COST;
+    const m = regen(code, awake);
+    // 図鑑に登録 (通常版と覚醒版は別枠)
+    if (!this.state.dex.some(d => d.code === code && !!d.awake === !!m.awake)) {
+      this.state.dex.unshift({
+        code, name: m.name, species: m.species, rarity: m.rarity,
+        visual: m.visual, rare: m.rare, fused: m.fused, parents: m.parents,
+        awake: m.awake, bestRank: 0,
+      });
+    }
+    this.state.monster = m;
+    this.state.logs = [];
+    this.fuseSel = [];
+    // 図鑑への新種族登録
+    let newSpecies = false;
+    if (!m.fused && SPECIES.some(s => s.name === m.species) && !this.state.found[m.species]) {
+      this.state.found[m.species] = true;
+      newSpecies = true;
+    }
+    const tag = m.awake ? '〈覚醒〉' : m.fused ? '〈合成種〉' : m.rare ? '〈伝説種〉' : '';
+    this.log(`✨ ${m.rarity} ${m.species}族${tag}の「${m.name}」が召喚された！（寿命 約${m.lifespan}週）`, 'gold-t');
+    if (newSpecies) {
+      const cnt = SPECIES.filter(s => this.state.found[s.name]).length;
+      this.log(`📖 図鑑に新種族「${m.species}族」が登録された！（発見 ${cnt}/${SPECIES.length}種）`, 'info');
+    }
+    if (m.awake) {
+      this.log(`🌟 かくれた御利益タイムにピッタリ読み込んだ！ ${m.name}は覚醒した姿で現れた！！`, 'gold-t');
+    } else if (!isFuse && luckyWindow(code).day === now.getDay()) {
+      // 曜日だけ合っている → 時間を変えて再挑戦したくなるヒント
+      this.log('🔮 …今日はこのQRから不思議な気配がする。読み込む時間しだいで、何かが起きるかもしれない…', 'info');
+    }
+    this.save();
+    this.playSummonAnim(m);
+  },
+
+  playSummonAnim(m) {
+    const div = document.createElement('div');
+    div.id = 'summon-anim';
+    const isFuse = m.fused;
+    div.innerHTML = `<div class="egg">${isFuse ? '⚗️' : '🥚'}</div><p style="margin-top:16px; color:#f5c518;">${isFuse ? '融合中…' : '召喚中…'}</p>`;
+    document.body.appendChild(div);
+    setTimeout(() => {
+      div.innerHTML = `
+        <div class="reveal" style="text-align:center;">
+          <div>${monsterSVG(m.visual, 150)}</div>
+          <div style="font-size:22px; font-weight:bold; margin-top:8px;">${escapeHtml(m.name)}</div>
+          <div style="color:#9ab;">${speciesLabel(m)}</div>
+          ${m.parents ? `<div class="small" style="color:#c58cff;">${escapeHtml(m.parents[0])} × ${escapeHtml(m.parents[1])}</div>` : ''}
+          <div style="color:#f5c518; letter-spacing:3px; font-size:18px; margin-top:4px;">${m.rarity}</div>
+          <button class="primary" style="margin-top:20px; padding:12px 40px;" onclick="game.closeSummonAnim()">育成をはじめる！</button>
+        </div>`;
+    }, 1700);
+  },
+  closeSummonAnim() {
+    const div = document.getElementById('summon-anim');
+    if (div) div.remove();
+    this.showTab('farm');
+    this.renderAll();
+  },
+
+  manualSummon() {
+    const v = document.getElementById('manual-code').value;
+    if (!v.trim()) { alert('文字列を入力してください'); return; }
+    document.getElementById('manual-code').value = '';
+    this.summonFromCode(v);
+  },
+
+  // ----- 融合 (fuseSelは図鑑のindexで管理: 覚醒版と通常版が同コードでも区別できる) -----
+  toggleFuse(i) {
+    const idx = this.fuseSel.indexOf(i);
+    if (idx >= 0) this.fuseSel.splice(idx, 1);
+    else { this.fuseSel.push(i); if (this.fuseSel.length > 2) this.fuseSel.shift(); }
+    this.renderDex();
+  },
+  clearFuse() { this.fuseSel = []; this.renderDex(); },
+  fuse() {
+    if (this.fuseSel.length !== 2) return;
+    const [a, b] = this.fuseSel.map(i => this.state.dex[i].code);
+    if (a === b) { alert('同じQRのモンスターどうしは融合できない！'); return; }
+    this.summonFromCode('FUSE:' + JSON.stringify([a, b].sort()));
+  },
+  resummon(i) {
+    const d = this.state.dex[i];
+    // 覚醒版として捕まえた個体は、いつ再召喚しても覚醒版のまま
+    this.summonFromCode(d.code, d.awake ? true : undefined);
+  },
+
+  // ===== ともだち対戦 (QR交換) =====
+  showMyQR() {
+    const m = this.state.monster;
+    if (!m || m.retired) { alert('まずはモンスターを召喚しよう！'); return; }
+    const code = encodeMonsterQR(m);
+    let qrHtml;
+    try {
+      const qr = qrcode(0, 'L');
+      qr.addData(code);
+      qr.make();
+      qrHtml = `<div class="qr-box">${qr.createSvgTag(4, 4)}</div>`;
+    } catch (e) {
+      qrHtml = `<p class="small" style="max-width:300px; word-break:break-all; background:#0d1b33; padding:10px; border-radius:10px;">QR画像を作れなかった（オフライン？）。このコードをコピーして送ってね：<br><br>${escapeHtml(code)}</p>`;
+    }
+    const div = document.createElement('div');
+    div.id = 'qr-modal';
+    div.innerHTML = `
+      <div style="text-align:center;">
+        <div>${monsterSVG(m.visual, 80)}</div>
+        <div style="font-weight:bold; font-size:18px;">${escapeHtml(m.name)}</div>
+        <div class="small" style="margin-bottom:10px;">${RANKS[m.rank]}ランク・大会${m.wins}勝 ｜ ともだちにスキャンしてもらおう！</div>
+        ${qrHtml}
+        <div><button class="primary" style="margin-top:14px; padding:10px 44px;" onclick="document.getElementById('qr-modal').remove()">とじる</button></div>
+      </div>`;
+    document.body.appendChild(div);
+  },
+
+  scanForBattle() {
+    this.showTab('summon');
+    this.startCamera();
+    document.getElementById('summon-note').textContent = 'ともだちのモンスターQRを枠内にかざしてね！（読み込むと対戦が始まる）';
+  },
+
+  friendCodeSubmit() {
+    const v = document.getElementById('friend-code').value.trim();
+    if (!v.startsWith('MON:')) { alert('「MON:」から始まるモンスターコードを貼り付けてね'); return; }
+    document.getElementById('friend-code').value = '';
+    this.startFriendBattle(v);
+  },
+
+  startFriendBattle(code) {
+    const fm = decodeMonsterQR(code);
+    if (!fm) { alert('このモンスターQRは読み取れなかった…（コードが途中で切れているかも）'); return; }
+    const my = this.state.monster;
+    if (!my || my.retired) { alert('対戦するには、まず自分のモンスターを召喚しよう！'); return; }
+    this.stopCamera();
+    this.battle = {
+      mode: 'friend', returnTab: 'versus',
+      player: { name: my.name, visual: my.visual, stats: { ...my.stats }, hp: this.maxHp(my.stats), maxHp: this.maxHp(my.stats) },
+      enemy:  { name: fm.name, visual: fm.visual, stats: fm.stats, hp: this.maxHp(fm.stats), maxHp: this.maxHp(fm.stats) },
+      over: false, turn: 0,
+    };
+    this.showTab('battle');
+    document.getElementById('battle-title').textContent = '🤝 ともだち対戦';
+    document.getElementById('battle-log').innerHTML = '';
+    document.getElementById('battle-cmds').classList.remove('hidden');
+    document.getElementById('battle-close').classList.add('hidden');
+    this.blog(`ともだちの「${fm.name}」（${RANKS[fm.rank] || 'E'}ランク・${fm.wins}勝）が勝負をしかけてきた！`, 'info');
+    this.renderBattle();
+  },
+
+  // ===== この端末で2人対戦 =====
+  getRoster() {
+    const list = [];
+    const m = this.state.monster;
+    if (m && !m.retired) list.push({ label: `⭐ ${m.name}（いま育成中）`, name: m.name, visual: m.visual, stats: { ...m.stats } });
+    for (const d of this.state.dex) {
+      const g = regen(d.code, d.awake ? true : undefined);
+      list.push({ label: `${d.name}${d.awake ? '〈覚醒〉' : ''} ${d.rarity}`, name: d.name, visual: d.visual, stats: g.stats });
+    }
+    return list;
+  },
+
+  renderVersus() {
+    const roster = this.getRoster();
+    const opts = roster.length
+      ? roster.map((r, i) => `<option value="${i}">${escapeHtml(r.label)}</option>`).join('')
+      : '<option value="">モンスターがいない</option>';
+    for (const id of ['vs-a', 'vs-b']) {
+      const sel = document.getElementById(id);
+      const cur = sel.value;
+      sel.innerHTML = opts;
+      if (cur !== '' && Number(cur) < roster.length) sel.value = cur;
+    }
+    const a = document.getElementById('vs-a'), b = document.getElementById('vs-b');
+    if (roster.length > 1 && a.value === b.value) {
+      // できれば名前の違う相手を初期選択にする
+      const ai = Number(a.value);
+      let bi = roster.findIndex((r, i) => i !== ai && r.name !== roster[ai].name);
+      if (bi < 0) bi = ai === 0 ? 1 : 0;
+      b.value = String(bi);
+    }
+  },
+
+  startVersus() {
+    const roster = this.getRoster();
+    if (roster.length < 2) { alert('2人対戦には2体以上のモンスターが必要！まずは召喚しよう。'); return; }
+    const a = roster[Number(document.getElementById('vs-a').value)];
+    const b2 = roster[Number(document.getElementById('vs-b').value)];
+    if (!a || !b2) return;
+    if (a === b2) { alert('別のモンスターどうしを選ぼう！'); return; }
+    this.battle = {
+      mode: 'versus', returnTab: 'versus', active: 'player',
+      player: { name: a.name, visual: a.visual, stats: { ...a.stats }, hp: this.maxHp(a.stats), maxHp: this.maxHp(a.stats) },
+      enemy:  { name: b2.name, visual: b2.visual, stats: { ...b2.stats }, hp: this.maxHp(b2.stats), maxHp: this.maxHp(b2.stats) },
+      over: false, turn: 0,
+    };
+    this.showTab('battle');
+    document.getElementById('battle-title').textContent = '🆚 2人たいせん';
+    document.getElementById('battle-log').innerHTML = '';
+    document.getElementById('battle-cmds').classList.remove('hidden');
+    document.getElementById('battle-close').classList.add('hidden');
+    this.blog(`${a.name} VS ${b2.name}！ 交代でわざを選ぼう。`, 'info');
+    this.renderBattle();
+  },
+
+  updateTurnIndicator() {
+    const el = document.getElementById('turn-indicator');
+    const b = this.battle;
+    if (b && b.mode === 'versus' && !b.over) {
+      el.textContent = b.active === 'player'
+        ? `▶ 🔵ひだり「${b.player.name}」のばん！`
+        : `▶ 🔴みぎ「${b.enemy.name}」のばん！`;
+      el.classList.remove('hidden');
+    } else {
+      el.classList.add('hidden');
+    }
+  },
+
+  // ----- カメラスキャン -----
+  async startCamera() {
+    const note = document.getElementById('summon-note');
+    try {
+      this.videoStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }, audio: false
+      });
+    } catch (e) {
+      note.textContent = '⚠️ カメラを起動できません（権限拒否 or 非対応環境）。QR画像の読込か文字列入力を使ってください。';
+      return;
+    }
+    const video = document.getElementById('video');
+    video.srcObject = this.videoStream;
+    await video.play();
+    document.getElementById('video-wrap').style.display = 'block';
+    note.textContent = 'QRコードを枠内にかざしてください…';
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const detector = ('BarcodeDetector' in window)
+      ? new BarcodeDetector({ formats: ['qr_code'] }) : null;
+
+    this.scanTimer = setInterval(async () => {
+      if (!video.videoWidth) return;
+      try {
+        if (detector) {
+          const codes = await detector.detect(video);
+          if (codes.length) { this.summonFromCode(codes[0].rawValue); return; }
+        } else if (window.jsQR) {
+          canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0);
+          const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const qr = jsQR(img.data, img.width, img.height);
+          if (qr && qr.data) { this.summonFromCode(qr.data); return; }
+        }
+      } catch (e) { /* フレームスキップ */ }
+    }, 400);
+  },
+  stopCamera() {
+    if (this.scanTimer) { clearInterval(this.scanTimer); this.scanTimer = null; }
+    if (this.videoStream) {
+      this.videoStream.getTracks().forEach(t => t.stop());
+      this.videoStream = null;
+    }
+    document.getElementById('video-wrap').style.display = 'none';
+  },
+
+  // ----- QR画像ファイル読込 -----
+  scanFile(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    input.value = '';
+    const note = document.getElementById('summon-note');
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        if ('BarcodeDetector' in window) {
+          const det = new BarcodeDetector({ formats: ['qr_code'] });
+          const codes = await det.detect(img);
+          if (codes.length) { this.summonFromCode(codes[0].rawValue); return; }
+        }
+        if (window.jsQR) {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const qr = jsQR(data.data, data.width, data.height);
+          if (qr && qr.data) { this.summonFromCode(qr.data); return; }
+        }
+        note.textContent = '⚠️ QRコードを検出できませんでした。別の画像を試してください。';
+      } catch (e) {
+        note.textContent = '⚠️ 読み取りに失敗しました。';
+      }
+    };
+    img.src = URL.createObjectURL(file);
+  },
+
+  // ===== 育成 =====
+  passWeek(m, n) {
+    m.week += (n || 1);
+    if (m.week >= m.lifespan) {
+      m.retired = true;
+      this.log(`🌅 ${m.name}は寿命を迎え、静かに牧場を去った…。最終ランク: ${RANKS[m.rank]}`, 'info');
+      this.archiveMonster(m);
+      this.state.monster = null;
+    }
+  },
+  archiveMonster(m) {
+    const d = this.state.dex.find(d => d.code === m.code);
+    if (d && m.rank > (d.bestRank || 0)) d.bestRank = m.rank;
+  },
+
+  train(key) {
+    const m = this.state.monster;
+    if (!m || m.retired) return;
+    // トレーニングは無料 (お金がなくても遊べる)
+    const fatigueFactor = m.fatigue >= 80 ? 0.3 : m.fatigue >= 50 ? 0.7 : 1.0;
+    const failed = Math.random() < (m.fatigue / 250); // 疲労が高いと失敗しやすい
+    if (failed) {
+      m.fatigue = Math.min(100, m.fatigue + 10);
+      this.log(`💦 ${m.name}は疲れていてトレーニングに失敗した…（疲労 ${m.fatigue}）`, 'bad');
+    } else {
+      const gain = Math.max(1, Math.round((4 + Math.random() * 6) * m.talent[key] * fatigueFactor));
+      m.stats[key] += gain;
+      m.fatigue = Math.min(100, m.fatigue + 15 + Math.floor(Math.random() * 10));
+      const big = gain >= 9;
+      this.log(`${big ? '🔥 大成功！' : '💪'} ${STAT_NAMES[key]}のトレーニングで +${gain}（疲労 ${m.fatigue}）`, big ? 'gold-t' : 'good');
+    }
+    this.passWeek(m, 1);
+    this.save();
+    this.renderAll();
+  },
+
+  rest() {
+    const m = this.state.monster;
+    if (!m || m.retired) return;
+    const rec = 35 + Math.floor(Math.random() * 20);
+    m.fatigue = Math.max(0, m.fatigue - rec);
+    this.log(`😴 ${m.name}はゆっくり休んだ。疲労が大きく回復（疲労 ${m.fatigue}）`, 'good');
+    this.passWeek(m, 1);
+    this.save();
+    this.renderAll();
+  },
+
+  feed() {
+    const m = this.state.monster;
+    if (!m || m.retired) return;
+    if (this.state.money < 300) { this.log('💸 お金が足りない！', 'bad'); return; }
+    this.state.money -= 300;
+    m.fatigue = Math.max(0, m.fatigue - 20);
+    const key = STAT_KEYS[Math.floor(Math.random() * STAT_KEYS.length)];
+    const gain = 2 + Math.floor(Math.random() * 4);
+    m.stats[key] += gain;
+    this.log(`🍖 ごちそうを食べて大満足！ ${STAT_NAMES[key]} +${gain}、疲労も回復（疲労 ${m.fatigue}）`, 'good');
+    this.passWeek(m, 1);
+    this.save();
+    this.renderAll();
+  },
+
+  // ===== 大会 =====
+  enterTourney(idx) {
+    const m = this.state.monster;
+    const t = TOURNEYS[idx];
+    if (!m || m.retired) { alert('まずはモンスターを召喚しよう！'); return; }
+    if (idx > m.rank) { alert(`このランクにはまだ挑戦できない。${RANKS[m.rank]}ランク大会で優勝しよう！`); return; }
+    if (this.state.money < t.fee) { alert('参加費が足りない！'); return; }
+    this.state.money -= t.fee;
+
+    // 対戦相手: ランダム生成モンスターを大会レベルにスケール
+    const g = regen('rival-' + Math.random().toString(36).slice(2) + Date.now());
+    const enemy = { name: 'ライバル・' + g.name, visual: g.visual, stats: {} };
+    for (const k of STAT_KEYS) enemy.stats[k] = Math.round(g.stats[k] * t.level * 0.9);
+
+    this.battle = {
+      mode: 'tourney', returnTab: 'tourney', tourneyIdx: idx,
+      player: { name: m.name, visual: m.visual, stats: { ...m.stats }, hp: this.maxHp(m.stats), maxHp: this.maxHp(m.stats) },
+      enemy:  { name: enemy.name, visual: enemy.visual, stats: enemy.stats, hp: this.maxHp(enemy.stats), maxHp: this.maxHp(enemy.stats) },
+      over: false, turn: 0,
+    };
+    // 疲労ペナルティ
+    if (m.fatigue >= 60) {
+      this.battle.player.hp = Math.round(this.battle.player.hp * 0.8);
+      this.battle.player.maxHp = this.battle.player.hp;
+    }
+
+    this.showTab('battle');
+    document.getElementById('battle-title').textContent = `⚔️ ${t.name}・決勝戦`;
+    document.getElementById('battle-log').innerHTML = '';
+    document.getElementById('battle-cmds').classList.remove('hidden');
+    document.getElementById('battle-close').classList.add('hidden');
+    this.blog(`${t.name}の決勝戦！ ${m.name} VS ${enemy.name}`, 'info');
+    if (m.fatigue >= 60) this.blog(`⚠️ ${m.name}は疲れ気味だ…（HP-20%）`, 'bad');
+    this.renderBattle();
+  },
+
+  maxHp(stats) { return stats.life * 3; },
+
+  blog(msg, cls) {
+    const el = document.getElementById('battle-log');
+    const p = document.createElement('div');
+    if (cls) p.className = cls;
+    p.textContent = msg;
+    el.prepend(p);
+  },
+
+  // 攻撃タイプ: light(命中+30/威力x0.7) mid(標準) heavy(命中-25/威力x1.6)
+  attackOnce(atk, dfd, type) {
+    const mods = { light: { hit: 30, pow: 0.7 }, mid: { hit: 0, pow: 1.0 }, heavy: { hit: -25, pow: 1.6 } };
+    const mod = mods[type];
+    const hitChance = Math.max(15, Math.min(95, 70 + mod.hit + (atk.stats.acc - dfd.stats.spd) * 0.25));
+    if (Math.random() * 100 > hitChance) return { hit: false };
+    const base = (atk.stats.pow + atk.stats.int * 0.5) * mod.pow;
+    const reduce = dfd.stats.def * 0.6;
+    let dmg = Math.max(5, Math.round((base - reduce) * (0.85 + Math.random() * 0.3)));
+    const crit = Math.random() < 0.1 + atk.stats.int / 2000;
+    if (crit) dmg = Math.round(dmg * 1.5);
+    dfd.hp = Math.max(0, dfd.hp - dmg);
+    return { hit: true, dmg, crit };
+  },
+
+  playerAttack(type) {
+    const b = this.battle;
+    if (!b || b.over) return;
+    b.turn++;
+
+    // ---- 2人対戦: 交代でコマンドを選ぶ (AIなし) ----
+    if (b.mode === 'versus') {
+      const atkSide = b.active, defSide = atkSide === 'player' ? 'enemy' : 'player';
+      const atk = b[atkSide], dfd = b[defSide];
+      this.animate(atkSide === 'player' ? 'f-player' : 'f-enemy', atkSide === 'player' ? 'attack-l' : 'attack-r');
+      const r = this.attackOnce(atk, dfd, type);
+      if (r.hit) {
+        this.animate(defSide === 'player' ? 'f-player' : 'f-enemy', 'shake');
+        this.blog(`💥 ${atk.name}の攻撃！ ${r.crit ? 'クリティカル!! ' : ''}${r.dmg}ダメージ`, r.crit ? 'gold-t' : 'good');
+      } else {
+        this.blog(`💨 ${atk.name}の攻撃は外れた！`, '');
+      }
+      if (dfd.hp <= 0) { this.renderBattle(); this.endBattle(defSide === 'enemy'); return; }
+      b.active = defSide;
+      this.renderBattle();
+      return;
+    }
+
+    // ---- 大会・ともだち対戦: プレイヤー攻撃 → AIの反撃 ----
+    this.animate('f-player', 'attack-l');
+    const r = this.attackOnce(b.player, b.enemy, type);
+    if (r.hit) {
+      this.animate('f-enemy', 'shake');
+      this.blog(`💥 ${b.player.name}の攻撃！ ${r.crit ? 'クリティカル!! ' : ''}${r.dmg}ダメージ`, r.crit ? 'gold-t' : 'good');
+    } else {
+      this.blog(`💨 ${b.player.name}の攻撃は外れた！`, '');
+    }
+    this.renderBattle();
+    if (b.enemy.hp <= 0) { this.endBattle(true); return; }
+
+    // 敵の反撃 (少し遅らせる)
+    document.getElementById('battle-cmds').classList.add('hidden');
+    setTimeout(() => {
+      if (this.battle !== b || b.over) return; // 途中でタブ移動などで対戦が流れた場合
+      const types = ['light', 'mid', 'mid', 'heavy'];
+      const et = types[Math.floor(Math.random() * types.length)];
+      this.animate('f-enemy', 'attack-r');
+      const er = this.attackOnce(b.enemy, b.player, et);
+      if (er.hit) {
+        this.animate('f-player', 'shake');
+        this.blog(`🗡️ ${b.enemy.name}の反撃！ ${er.crit ? 'クリティカル!! ' : ''}${er.dmg}ダメージ`, 'bad');
+      } else {
+        this.blog(`🌀 ${b.enemy.name}の攻撃をかわした！`, 'good');
+      }
+      this.renderBattle();
+      if (b.player.hp <= 0) { this.endBattle(false); return; }
+      document.getElementById('battle-cmds').classList.remove('hidden');
+    }, 700);
+  },
+
+  animate(id, cls) {
+    const el = document.querySelector(`#${id} .f-img`);
+    el.classList.remove('shake', 'attack-l', 'attack-r');
+    void el.offsetWidth;
+    el.classList.add(cls);
+  },
+
+  endBattle(won) {
+    const b = this.battle;
+    b.over = true;
+    document.getElementById('battle-cmds').classList.add('hidden');
+    document.getElementById('battle-close').classList.remove('hidden');
+    this.updateTurnIndicator();
+
+    // ---- 2人対戦: 勝者を発表するだけ (育成データに影響なし) ----
+    if (b.mode === 'versus') {
+      const w = won ? b.player : b.enemy;
+      this.blog(`🏅 ${w.name}の勝ち！！ ナイスバトル！`, 'gold-t');
+      return;
+    }
+
+    // ---- ともだち対戦: 疲労も週も進まない。記録だけ残す ----
+    if (b.mode === 'friend') {
+      if (won) {
+        this.blog(`🎉 勝利！ ともだちの${b.enemy.name}に勝った！`, 'gold-t');
+        this.log(`🤝 ともだち対戦で「${b.enemy.name}」に勝利！`, 'gold-t');
+      } else {
+        this.blog(`😆 まけた〜！ ${b.enemy.name}はつよかった…`, 'bad');
+        this.log(`🤝 ともだち対戦で「${b.enemy.name}」に敗北…もっと鍛えて再挑戦だ！`, 'bad');
+      }
+      this.save();
+      this.renderAll();
+      return;
+    }
+
+    // ---- 公式大会 ----
+    const t = TOURNEYS[b.tourneyIdx];
+    const m = this.state.monster;
+    if (won) {
+      this.state.money += t.prize;
+      m.wins++;
+      this.blog(`🏆 優勝！！ 賞金 ${t.prize}G を獲得！`, 'gold-t');
+      if (b.tourneyIdx === m.rank && m.rank < RANKS.length - 1) {
+        m.rank++;
+        this.blog(`⬆️ ランクアップ！ ${RANKS[m.rank - 1]} → ${RANKS[m.rank]}ランクに昇格！`, 'gold-t');
+        this.log(`🏆 ${t.name}で優勝！ ${RANKS[m.rank]}ランクに昇格し、賞金${t.prize}Gを獲得！`, 'gold-t');
+      } else {
+        this.log(`🏆 ${t.name}で優勝し、賞金${t.prize}Gを獲得！`, 'gold-t');
+      }
+      if (m.rank === RANKS.length - 1 && b.tourneyIdx === RANKS.length - 1) {
+        this.blog(`👑 伝説王者決定戦を制覇！ ${m.name}は最強のモンスターとして歴史に名を刻んだ！！`, 'gold-t');
+        this.log(`👑 ${m.name}が頂点に立った！ 伝説王者おめでとう！！`, 'gold-t');
+      }
+      const d = this.state.dex.find(d => d.code === m.code);
+      if (d && m.rank > (d.bestRank || 0)) d.bestRank = m.rank;
+    } else {
+      // 負けても参加費が戻り参加賞ももらえる (お金で詰まない)
+      const consolation = t.fee + 100;
+      this.state.money += consolation;
+      this.blog(`😢 敗北… ${m.name}は悔しそうだ。鍛え直して再挑戦しよう！`, 'bad');
+      this.blog(`🎁 参加賞として ${consolation}G をもらった。`, 'info');
+      this.log(`⚔️ ${t.name}決勝で敗北…。参加賞${consolation}Gをもらって出直そう。`, 'bad');
+    }
+    m.fatigue = Math.min(100, m.fatigue + 30);
+    this.passWeek(m, 4);
+    this.save();
+    this.renderAll();
+  },
+
+  closeBattle() {
+    const rt = (this.battle && this.battle.returnTab) || 'tourney';
+    this.battle = null;
+    this.showTab(rt === 'tourney' && this.state.monster === null ? 'farm' : rt);
+    this.renderAll();
+  },
+
+  // ===== 描画 =====
+  renderAll() {
+    this.renderMonster();
+    this.renderTourneys();
+    this.renderDex();
+    this.renderZukan();
+    this.renderVersus();
+    this.renderLog();
+  },
+
+  renderZukan() {
+    const grid = document.getElementById('zukan-grid');
+    if (!grid) return;
+    const found = this.state.found || {};
+    const count = SPECIES.filter(s => found[s.name]).length;
+    document.getElementById('zukan-count').textContent = `発見 ${count} / ${SPECIES.length}種`;
+    document.getElementById('zukan-bar').style.width = (count / SPECIES.length * 100) + '%';
+    grid.innerHTML = SPECIES.map(sp => {
+      const isF = !!found[sp.name];
+      return `<div style="text-align:center; background:${sp.rare ? 'linear-gradient(160deg,#2a2410,#16213e)' : '#0d1b33'}; border:1px solid ${sp.rare ? '#8a6d00' : '#2a3a5e'}; border-radius:8px; padding:4px 1px;">
+        <span style="display:inline-block; ${isF ? '' : 'filter:brightness(0) invert(.35);'}">${monsterSVG(speciesRep(sp), 40)}</span>
+        <div style="font-size:8px; white-space:nowrap; overflow:hidden; ${isF ? (sp.rare ? 'color:var(--gold); font-weight:bold;' : 'font-weight:bold;') : 'color:#556;'}">${isF ? sp.name : '？？？'}</div>
+      </div>`;
+    }).join('');
+  },
+
+  renderMonster() {
+    const m = this.state.monster;
+    const noM = document.getElementById('no-monster');
+    const main = document.getElementById('farm-main');
+    if (!m) { noM.classList.remove('hidden'); main.classList.add('hidden'); return; }
+    noM.classList.add('hidden'); main.classList.remove('hidden');
+
+    const card = document.getElementById('monster-card');
+    const fatigueColor = m.fatigue >= 60 ? '#e94560' : m.fatigue >= 30 ? '#f5c518' : '#4ecca3';
+    const lifeLeft = m.lifespan - m.week;
+    card.innerHTML = `
+      <div class="age-badge">📅 ${m.week}週目<br><span style="color:${lifeLeft < 50 ? '#e94560' : '#9ab'}">寿命 残り約${lifeLeft}週</span></div>
+      <div class="rank-badge">${RANKS[m.rank]}ランク</div>
+      <div class="monster-svg">${monsterSVG(m.visual, 110)}</div>
+      <div class="monster-name">${escapeHtml(m.name)}</div>
+      <div class="monster-species">${speciesLabel(m)} ｜ 大会 ${m.wins}勝</div>
+      ${m.parents ? `<div class="small" style="color:#c58cff;">${escapeHtml(m.parents[0])} × ${escapeHtml(m.parents[1])}</div>` : ''}
+      <div class="rarity">${m.rarity}</div>
+      <div class="stats">
+        ${STAT_KEYS.map(k => `
+          <div class="stat-row">
+            <span class="stat-label">${STAT_NAMES[k]}</span>
+            <span class="stat-val">${m.stats[k]}</span>
+            <div class="bar"><div style="width:${Math.min(100, m.stats[k] / 8)}%; background:${STAT_COLORS[k]}"></div></div>
+          </div>`).join('')}
+      </div>
+      <div class="cond-row">
+        <div class="cond-item">😮‍💨 疲労<div class="v" style="color:${fatigueColor}">${m.fatigue}</div></div>
+        <div class="cond-item">💰 所持金<div class="v money">${this.state.money}G</div></div>
+        <div class="cond-item">📊 総合力<div class="v">${STAT_KEYS.reduce((s, k) => s + m.stats[k], 0)}</div></div>
+      </div>`;
+  },
+
+  renderTourneys() {
+    const m = this.state.monster;
+    const tbl = document.getElementById('tourney-table');
+    tbl.innerHTML = TOURNEYS.map((t, i) => {
+      const locked = !m || m.retired || i > m.rank;
+      const cleared = m && i < m.rank;
+      return `<tr class="${locked ? 'locked' : ''} ${cleared ? 'cleared' : ''}">
+        <td><b style="color:var(--gold)">${t.rank}</b></td>
+        <td>${t.name}</td>
+        <td class="small">参加費 ${t.fee}G<br>賞金 <span class="money">${t.prize}G</span></td>
+        <td><button ${locked ? 'disabled' : ''} onclick="game.enterTourney(${i})" class="${cleared ? '' : 'gold'}">${cleared ? '再挑戦' : '出場！'}</button></td>
+      </tr>`;
+    }).join('');
+  },
+
+  renderDex() {
+    const bar = document.getElementById('fuse-bar');
+    const list = document.getElementById('dex-list');
+    const dex = this.state.dex;
+    const selNames = this.fuseSel.map(i => dex[i] ? dex[i].name : '?');
+    bar.innerHTML = `
+      <p class="small">2体を「⚗️素材」で選ぶと融合召喚できる（費用${FUSE_COST}G）。合成種は両親の力を受け継ぎ、さらに強くなる！</p>
+      <div class="btn-row" style="margin:8px 0;">
+        <button ${this.fuseSel.length === 2 ? '' : 'disabled'} class="primary" onclick="game.fuse()">⚗️ 融合召喚 ${FUSE_COST}G${selNames.length ? '｜' + selNames.map(escapeHtml).join(' × ') : ''}</button>
+        ${this.fuseSel.length ? '<button onclick="game.clearFuse()" style="flex:0 1 auto;">解除</button>' : ''}
+      </div>`;
+    if (!dex.length) { list.innerHTML = '<p class="small">まだ誰も召喚していない。</p>'; return; }
+    list.innerHTML = dex.map((d, i) => {
+      const sel = this.fuseSel.includes(i);
+      const src = d.fused && d.parents
+        ? `<span style="color:#c58cff;">融合: ${escapeHtml(d.parents[0])} × ${escapeHtml(d.parents[1])}</span>`
+        : `QR: ${escapeHtml(d.code.length > 34 ? d.code.slice(0, 34) + '…' : d.code)}`;
+      return `
+      <div class="dex-item ${sel ? 'fuse-sel' : ''}">
+        <span>${monsterSVG(d.visual, 44)}</span>
+        <div style="flex:1; min-width:0;">
+          <b>${escapeHtml(d.name)}</b> <span class="small">${speciesLabel(d)} ${d.rarity}</span><br>
+          <span class="small" style="word-break:break-all;">${src}</span>
+        </div>
+        <div class="dex-btns">
+          <button class="mini ${sel ? 'primary' : ''}" onclick="game.toggleFuse(${i})">⚗️素材</button>
+          <button class="mini" onclick="game.resummon(${i})">召喚</button>
+        </div>
+        <span class="small center">最高<br><b style="color:var(--gold); font-size:15px;">${RANKS[d.bestRank || 0]}</b></span>
+      </div>`;
+    }).join('');
+  },
+
+  renderLog() {
+    const el = document.getElementById('log');
+    if (!el) return;
+    el.innerHTML = this.state.logs.map(l => `<div class="${l.cls}">${escapeHtml(l.msg)}</div>`).join('');
+  },
+
+  renderBattle() {
+    const b = this.battle;
+    for (const [id, f] of [['f-player', b.player], ['f-enemy', b.enemy]]) {
+      const el = document.getElementById(id);
+      el.querySelector('.f-img').innerHTML = monsterSVG(f.visual, 76);
+      el.querySelector('.f-name').textContent = f.name;
+      const pct = (f.hp / f.maxHp) * 100;
+      const bar = el.querySelector('.hp-bar');
+      bar.classList.toggle('low', pct < 30);
+      bar.querySelector('div').style.width = pct + '%';
+      el.querySelector('.hp-num').textContent = `${f.hp} / ${f.maxHp}`;
+    }
+    this.updateTurnIndicator();
+  },
+
+  // ===== タブ =====
+  showTab(name) {
+    // バトル画面を離れたら、その対戦は流れる
+    if (name !== 'battle' && this.battle) this.battle = null;
+    for (const t of ['farm', 'summon', 'tourney', 'versus', 'dex', 'battle']) {
+      document.getElementById('tab-' + t).classList.toggle('hidden', t !== name);
+    }
+    document.querySelectorAll('#tab-bar button').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === name));
+    if (name !== 'summon') this.stopCamera();
+  },
+};
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+document.querySelectorAll('#tab-bar button').forEach(b =>
+  b.addEventListener('click', () => game.showTab(b.dataset.tab)));
+
+game.load();
+game.renderAll();
+game.showTab(game.state.monster ? 'farm' : 'summon');
+</script>
+</body>
+</html>
