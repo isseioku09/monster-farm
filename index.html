@@ -601,14 +601,21 @@ const STAT_KEYS = ['life','pow','int','acc','spd','def'];
 const STAT_NAMES = { life: 'ライフ', pow: 'ちから', int: 'かしこさ', acc: '命中', spd: '回避', def: '丈夫さ' };
 const STAT_COLORS = { life: '#e94560', pow: '#ff9f43', int: '#a29bfe', acc: '#53b8ff', spd: '#4ecca3', def: '#f5c518' };
 const RANKS = ['E','D','C','B','A','S'];
+// stat あり = パラメーター競技 (3本勝負) / stat なし = ターン制バトル
 const TOURNEYS = [
-  { rank: 'E', name: 'ルーキーカップ',   fee: 0,    prize: 800,   level: 1.0 },
-  { rank: 'D', name: 'ブロンズカップ',   fee: 100,  prize: 1500,  level: 1.6 },
-  { rank: 'C', name: 'シルバーカップ',   fee: 200,  prize: 3000,  level: 2.4 },
-  { rank: 'B', name: 'ゴールドカップ',   fee: 400,  prize: 5000,  level: 3.4 },
-  { rank: 'A', name: 'マスターズカップ', fee: 800,  prize: 9000,  level: 4.6 },
-  { rank: 'S', name: '伝説王者決定戦',   fee: 1500, prize: 20000, level: 6.0 },
+  { rank: 'E', name: 'かけっこ大会',       stat: 'spd', fee: 0,    prize: 800,   level: 1.0 },
+  { rank: 'D', name: 'ちからじまん大会',   stat: 'pow', fee: 100,  prize: 1500,  level: 1.6 },
+  { rank: 'C', name: 'ものしりクイズ大会', stat: 'int', fee: 200,  prize: 3000,  level: 2.4 },
+  { rank: 'B', name: '的あて名人戦',       stat: 'acc', fee: 400,  prize: 5000,  level: 3.4 },
+  { rank: 'A', name: 'マスターズカップ',   stat: null,  fee: 800,  prize: 9000,  level: 4.6 },
+  { rank: 'S', name: '伝説王者決定戦',     stat: null,  fee: 1500, prize: 20000, level: 6.0 },
 ];
+const CONTEST_FLAVOR = {
+  spd: { emoji: '🏃', unit: 'm',    scale: 1,   round: ['よーい、ドン！ スタートダッシュ！', '2回戦、コーナーの攻防！', '最終ラウンド、ラストスパート！！'] },
+  pow: { emoji: '💪', unit: 'kg',   scale: 1,   round: ['大岩持ち上げ勝負！', '2回戦は丸太運び！', '最終ラウンド、巨大岩に挑戦！！'] },
+  int: { emoji: '🧠', unit: '問正解', scale: 0.1, round: ['ものしりクイズ、スタート！', '2回戦はスピード計算！', '最終ラウンドは超難問！！'] },
+  acc: { emoji: '🎯', unit: '点',   scale: 1,   round: ['的あて勝負、スタート！', '2回戦は動く的！', '最終ラウンドは小さな的！！'] },
+};
 const FUSE_COST = 500;
 
 // ---------- SVGモンスター描画・旧なめらか版 (未使用・戻したい時はこちらを monsterSVG に改名) ----------
@@ -1306,6 +1313,7 @@ const game = {
     document.getElementById('battle-log').innerHTML = '';
     document.getElementById('battle-cmds').classList.remove('hidden');
     document.getElementById('battle-close').classList.add('hidden');
+    this.setCmds('battle');
     this.blog(`ともだちの「${fm.name}」（${RANKS[fm.rank] || 'E'}ランク・${fm.wins}勝）が勝負をしかけてきた！`, 'info');
     this.renderBattle();
   },
@@ -1361,6 +1369,7 @@ const game = {
     document.getElementById('battle-log').innerHTML = '';
     document.getElementById('battle-cmds').classList.remove('hidden');
     document.getElementById('battle-close').classList.add('hidden');
+    this.setCmds('battle');
     this.blog(`${a.name} VS ${b2.name}！ 交代でわざを選ぼう。`, 'info');
     this.renderBattle();
   },
@@ -1532,6 +1541,9 @@ const game = {
     const enemy = { name: 'ライバル・' + g.name, visual: g.visual, stats: {} };
     for (const k of STAT_KEYS) enemy.stats[k] = Math.round(g.stats[k] * t.level * 0.9);
 
+    // パラメーター競技の大会ならそちらへ
+    if (t.stat) { this.startContest(idx, t, m, enemy); return; }
+
     this.battle = {
       mode: 'tourney', returnTab: 'tourney', tourneyIdx: idx,
       player: { name: m.name, visual: m.visual, stats: { ...m.stats }, hp: this.maxHp(m.stats), maxHp: this.maxHp(m.stats) },
@@ -1549,9 +1561,72 @@ const game = {
     document.getElementById('battle-log').innerHTML = '';
     document.getElementById('battle-cmds').classList.remove('hidden');
     document.getElementById('battle-close').classList.add('hidden');
+    this.setCmds('battle');
     this.blog(`${t.name}の決勝戦！ ${m.name} VS ${enemy.name}`, 'info');
     if (m.fatigue >= 60) this.blog(`⚠️ ${m.name}は疲れ気味だ…（HP-20%）`, 'bad');
     this.renderBattle();
+  },
+
+  // ===== パラメーター競技 (3本勝負・2本先取) =====
+  startContest(idx, t, m, enemy) {
+    const fl = CONTEST_FLAVOR[t.stat];
+    this.battle = {
+      mode: 'contest', returnTab: 'tourney', tourneyIdx: idx, stat: t.stat,
+      penalty: m.fatigue >= 60 ? 0.85 : 1.0,
+      player: { name: m.name, visual: m.visual, stats: { ...m.stats }, hp: 0, maxHp: 2 },
+      enemy:  { name: enemy.name, visual: enemy.visual, stats: enemy.stats, hp: 0, maxHp: 2 },
+      round: 1, over: false, turn: 0,
+    };
+    this.showTab('battle');
+    document.getElementById('battle-title').textContent = `${fl.emoji} ${t.name}・決勝`;
+    document.getElementById('battle-log').innerHTML = '';
+    document.getElementById('battle-cmds').classList.remove('hidden');
+    document.getElementById('battle-close').classList.add('hidden');
+    this.setCmds('contest');
+    this.blog(`${t.name}の決勝！ ${STAT_NAMES[t.stat]}の3本勝負、2本先取だ！`, 'info');
+    if (this.battle.penalty < 1) this.blog(`⚠️ ${m.name}は疲れ気味だ…（記録-15%）`, 'bad');
+    this.renderBattle();
+  },
+
+  contestRound(type) {
+    const b = this.battle;
+    if (!b || b.over) return;
+    const fl = CONTEST_FLAVOR[b.stat];
+    const mods = { light: [0.9, 1.1], mid: [0.75, 1.35], heavy: [0.5, 1.75] };
+    const [lo, hi] = mods[type];
+    const raw = b.player.stats[b.stat] * (lo + Math.random() * (hi - lo)) * b.penalty;
+    const pv = Math.max(1, Math.round(raw * fl.scale));
+    const ev = Math.max(1, Math.round(b.enemy.stats[b.stat] * (0.8 + Math.random() * 0.4) * fl.scale));
+    this.blog(`【${b.round}回戦】${fl.round[Math.min(b.round, 3) - 1]}`, 'info');
+    if (pv >= ev) { // 同点はプレイヤーの勝ち
+      b.player.hp++;
+      this.animate('f-player', 'attack-l');
+      this.blog(`🚩 ${b.player.name} ${pv}${fl.unit} − ${b.enemy.name} ${ev}${fl.unit} → ${b.player.name}の勝ち！`, 'good');
+    } else {
+      b.enemy.hp++;
+      this.animate('f-enemy', 'shake');
+      this.blog(`🚩 ${b.player.name} ${pv}${fl.unit} − ${b.enemy.name} ${ev}${fl.unit} → ${b.enemy.name}の勝ち…`, 'bad');
+    }
+    b.round++;
+    this.renderBattle();
+    if (b.player.hp >= 2) { this.endBattle(true); return; }
+    if (b.enemy.hp >= 2) { this.endBattle(false); return; }
+  },
+
+  // バトルと競技でコマンドボタンのラベルを切り替え
+  setCmds(mode) {
+    const defs = mode === 'contest' ? [
+      ['🛡️ けんじつ', 'ムラなく安定'],
+      ['🙂 ふつう', 'バランス'],
+      ['🔥 大勝負', '大成功も大失敗も'],
+    ] : [
+      ['⚡ 速攻', '命中◎ 威力△'],
+      ['👊 攻撃', 'バランス型'],
+      ['💥 必殺', '威力◎ 命中△'],
+    ];
+    document.querySelectorAll('#battle-cmds button').forEach((btn, i) => {
+      if (defs[i]) btn.innerHTML = `${defs[i][0]}<br><span class="small">${defs[i][1]}</span>`;
+    });
   },
 
   maxHp(stats) { return stats.life * 3; },
@@ -1583,6 +1658,9 @@ const game = {
     const b = this.battle;
     if (!b || b.over) return;
     b.turn++;
+
+    // ---- パラメーター競技: ボタン=そのラウンドの作戦 ----
+    if (b.mode === 'contest') { this.contestRound(type); return; }
 
     // ---- 2人対戦: 交代でコマンドを選ぶ (AIなし) ----
     if (b.mode === 'versus') {
@@ -1777,7 +1855,7 @@ const game = {
       const cleared = m && i < m.rank;
       return `<tr class="${locked ? 'locked' : ''} ${cleared ? 'cleared' : ''}">
         <td><b style="color:var(--gold)">${t.rank}</b></td>
-        <td>${t.name}</td>
+        <td>${t.name}<br><span class="small">${t.stat ? CONTEST_FLAVOR[t.stat].emoji + ' ' + STAT_NAMES[t.stat] + '勝負' : '⚔️ バトル（総合力）'}</span></td>
         <td class="small">参加費 ${t.fee}G<br>賞金 <span class="money">${t.prize}G</span></td>
         <td><button ${locked ? 'disabled' : ''} onclick="game.enterTourney(${i})" class="${cleared ? '' : 'gold'}">${cleared ? '再挑戦' : '出場！'}</button></td>
       </tr>`;
