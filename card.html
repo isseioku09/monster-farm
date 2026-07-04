@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QRモンスターファーム あそびかたカード</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: #eee;
+    display: flex; justify-content: center; padding: 20px;
+  }
+  .card {
+    width: 148mm; /* A6横2枚 or A5縦 相当 */
+    background: linear-gradient(160deg, #1a1a2e, #16213e);
+    color: #eaeaea;
+    border-radius: 16px;
+    padding: 28px 24px;
+    text-align: center;
+  }
+  h1 { color: #f5c518; font-size: 26px; margin-bottom: 2px; }
+  .sub { font-size: 12px; color: #8a9ab8; margin-bottom: 18px; }
+  .qr-wrap { background: #fff; display: inline-block; padding: 14px; border-radius: 14px; }
+  .qr-wrap svg { display: block; width: 200px; height: 200px; }
+  .url { font-size: 12px; color: #53b8ff; margin-top: 10px; word-break: break-all; }
+  .steps {
+    text-align: left; margin: 18px auto 0; max-width: 420px;
+    background: rgba(13,27,51,.7); border-radius: 12px; padding: 14px 18px;
+    font-size: 14px; line-height: 2;
+  }
+  .steps b { color: #f5c518; }
+  .hint { font-size: 11px; color: #8a9ab8; margin-top: 12px; line-height: 1.7; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .card { border-radius: 0; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>🐲 QRモンスターファーム</h1>
+  <div class="sub">世の中のQRコードにモンスターがかくれている！ 全151種類をあつめよう</div>
+  <div class="qr-wrap" id="qr"></div>
+  <div class="url">https://isseioku09.github.io/monster-farm/</div>
+  <div class="steps">
+    <b>① よみこむ</b>：スマホのカメラで上のQRコードをよみとって、ひらく<br>
+    <b>② しょうかん</b>：ゲームの中で、みのまわりのQRコードをスキャン！<br>
+    <b>③ そだてる</b>：トレーニングしてカップ優勝！ ランクSをめざせ！
+  </div>
+  <div class="hint">
+    💡「ホームがめんについか」すると、アプリみたいにあそべるよ<br>
+    💡 モンスターには「きげんのいい曜日と時間」があるといううわさ…<br>
+    ⚠️ セーブはスマホの中にのこるよ（ブラウザの履歴をけすと消えちゃうので注意）
+  </div>
+</div>
+<script>
+  const qr = qrcode(0, 'M');
+  qr.addData('https://isseioku09.github.io/monster-farm/');
+  qr.make();
+  document.getElementById('qr').innerHTML = qr.createSvgTag(4, 0);
+</script>
+</body>
+</html>
