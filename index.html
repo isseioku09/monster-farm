@@ -386,8 +386,9 @@
     <div class="panel" id="tourney-list-panel">
       <h2>🏆 公式大会</h2>
       <table class="tourney" id="tourney-table"></table>
-      <p class="small" style="margin-top:8px;">大会に出場すると4週間経過する。優勝で賞金＆ランクアップ！</p>
+      <p class="small" style="margin-top:8px;">大会に出場すると4週間経過する。優勝で賞金＆ランクアップ！<br>E〜Bランクは6種目から得意なパラメーターを選んで出場できる。</p>
     </div>
+    <div class="panel hidden" id="event-picker"></div>
   </div>
 
   <!-- ========== 対戦タブ ========== -->
@@ -684,20 +685,22 @@ const STAT_KEYS = ['life','pow','int','acc','spd','def'];
 const STAT_NAMES = { life: 'ライフ', pow: 'ちから', int: 'かしこさ', acc: '命中', spd: '回避', def: '丈夫さ' };
 const STAT_COLORS = { life: '#e94560', pow: '#ff9f43', int: '#a29bfe', acc: '#53b8ff', spd: '#4ecca3', def: '#f5c518' };
 const RANKS = ['E','D','C','B','A','S'];
-// stat あり = パラメーター競技 (3本勝負) / stat なし = ターン制バトル
+// contest: true = 6種目から選べるパラメーター競技 (3本勝負) / false = ターン制バトル
 const TOURNEYS = [
-  { rank: 'E', name: 'かけっこ大会',       stat: 'spd', fee: 0,    prize: 800,   level: 1.0 },
-  { rank: 'D', name: 'ちからじまん大会',   stat: 'pow', fee: 100,  prize: 1500,  level: 1.6 },
-  { rank: 'C', name: 'ものしりクイズ大会', stat: 'int', fee: 200,  prize: 3000,  level: 2.4 },
-  { rank: 'B', name: '的あて名人戦',       stat: 'acc', fee: 400,  prize: 5000,  level: 3.4 },
-  { rank: 'A', name: 'マスターズカップ',   stat: null,  fee: 800,  prize: 9000,  level: 4.6 },
-  { rank: 'S', name: '伝説王者決定戦',     stat: null,  fee: 1500, prize: 20000, level: 6.0 },
+  { rank: 'E', name: 'ルーキーカップ',   contest: true,  fee: 0,    prize: 800,   level: 1.0 },
+  { rank: 'D', name: 'ブロンズカップ',   contest: true,  fee: 100,  prize: 1500,  level: 1.6 },
+  { rank: 'C', name: 'シルバーカップ',   contest: true,  fee: 200,  prize: 3000,  level: 2.4 },
+  { rank: 'B', name: 'ゴールドカップ',   contest: true,  fee: 400,  prize: 5000,  level: 3.4 },
+  { rank: 'A', name: 'マスターズカップ', contest: false, fee: 800,  prize: 9000,  level: 4.6 },
+  { rank: 'S', name: '伝説王者決定戦',   contest: false, fee: 1500, prize: 20000, level: 6.0 },
 ];
 const CONTEST_FLAVOR = {
-  spd: { emoji: '🏃', unit: 'm',    scale: 1,   round: ['よーい、ドン！ スタートダッシュ！', '2回戦、コーナーの攻防！', '最終ラウンド、ラストスパート！！'] },
-  pow: { emoji: '💪', unit: 'kg',   scale: 1,   round: ['大岩持ち上げ勝負！', '2回戦は丸太運び！', '最終ラウンド、巨大岩に挑戦！！'] },
-  int: { emoji: '🧠', unit: '問正解', scale: 0.1, round: ['ものしりクイズ、スタート！', '2回戦はスピード計算！', '最終ラウンドは超難問！！'] },
-  acc: { emoji: '🎯', unit: '点',   scale: 1,   round: ['的あて勝負、スタート！', '2回戦は動く的！', '最終ラウンドは小さな的！！'] },
+  spd:  { name: 'かけっこ',       emoji: '🏃', unit: 'm',     scale: 1,   round: ['よーい、ドン！ スタートダッシュ！', '2回戦、コーナーの攻防！', '最終ラウンド、ラストスパート！！'] },
+  pow:  { name: 'ちからじまん',   emoji: '💪', unit: 'kg',    scale: 1,   round: ['大岩持ち上げ勝負！', '2回戦は丸太運び！', '最終ラウンド、巨大岩に挑戦！！'] },
+  int:  { name: 'ものしりクイズ', emoji: '🧠', unit: '問正解', scale: 0.1, round: ['ものしりクイズ、スタート！', '2回戦はスピード計算！', '最終ラウンドは超難問！！'] },
+  acc:  { name: '的あて',         emoji: '🎯', unit: '点',    scale: 1,   round: ['的あて勝負、スタート！', '2回戦は動く的！', '最終ラウンドは小さな的！！'] },
+  def:  { name: 'がまん大会',     emoji: '🛡️', unit: '秒たえた', scale: 1, round: ['たわしマッサージに耐えろ！', '2回戦は冷たい水！', '最終ラウンドはくすぐり攻撃！！'] },
+  life: { name: 'なわとび大会',   emoji: '🤸', unit: '回とんだ', scale: 1, round: ['まずは前とび勝負！', '2回戦は二重とび！', '最終ラウンドは連続とび対決！！'] },
 };
 const FUSE_COST = 500;
 
@@ -1615,12 +1618,15 @@ const game = {
   },
 
   // ===== 大会 =====
-  enterTourney(idx) {
+  enterTourney(idx, stat) {
     const m = this.state.monster;
     const t = TOURNEYS[idx];
     if (!m || m.retired) { alert('まずはモンスターを召喚しよう！'); return; }
     if (idx > m.rank) { alert(`このランクにはまだ挑戦できない。${RANKS[m.rank]}ランク大会で優勝しよう！`); return; }
+    // 競技カップで種目未選択 → 種目選択画面へ (参加費はまだ取らない)
+    if (t.contest && !stat) { this.openEventPicker(idx); return; }
     if (this.state.money < t.fee) { alert('参加費が足りない！'); return; }
+    this.closeEventPicker();
     this.state.money -= t.fee;
 
     // 対戦相手: ランダム生成モンスターを大会レベルにスケール
@@ -1629,7 +1635,7 @@ const game = {
     for (const k of STAT_KEYS) enemy.stats[k] = Math.round(g.stats[k] * t.level * 0.9);
 
     // パラメーター競技の大会ならそちらへ
-    if (t.stat) { this.startContest(idx, t, m, enemy); return; }
+    if (t.contest) { this.startContest(idx, t, m, enemy, stat); return; }
 
     this.battle = {
       mode: 'tourney', returnTab: 'tourney', tourneyIdx: idx,
@@ -1656,23 +1662,47 @@ const game = {
     this.showBanner('⚔️ バトルスタート！');
   },
 
-  // ===== パラメーター競技 (3本勝負・2本先取) =====
-  startContest(idx, t, m, enemy) {
-    const fl = CONTEST_FLAVOR[t.stat];
+  // ===== パラメーター競技 (種目選択 → 3本勝負・2本先取) =====
+  openEventPicker(idx) {
+    const m = this.state.monster;
+    const t = TOURNEYS[idx];
+    document.getElementById('tourney-list-panel').classList.add('hidden');
+    const p = document.getElementById('event-picker');
+    p.classList.remove('hidden');
+    p.innerHTML = `
+      <h2>🏆 ${t.name} — 種目をえらぼう</h2>
+      <p class="small" style="margin-bottom:4px;">得意なパラメーターの種目で優勝すればランクアップ！（参加費 ${t.fee}G ／ 賞金 <span class="money">${t.prize}G</span>）</p>
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:8px; margin-top:10px;">
+        ${Object.entries(CONTEST_FLAVOR).map(([k, f]) => `
+          <button onclick="game.enterTourney(${idx}, '${k}')" style="padding:12px 6px;">
+            ${f.emoji} ${f.name}<br>
+            <span class="small">${STAT_NAMES[k]}勝負 ｜ いまの${STAT_NAMES[k]}: <b>${m ? m.stats[k] : '-'}</b></span>
+          </button>`).join('')}
+      </div>
+      <button style="width:100%; margin-top:10px;" onclick="game.closeEventPicker()">← 大会一覧にもどる</button>`;
+  },
+
+  closeEventPicker() {
+    document.getElementById('event-picker').classList.add('hidden');
+    document.getElementById('tourney-list-panel').classList.remove('hidden');
+  },
+
+  startContest(idx, t, m, enemy, stat) {
+    const fl = CONTEST_FLAVOR[stat];
     this.battle = {
-      mode: 'contest', returnTab: 'tourney', tourneyIdx: idx, stat: t.stat,
+      mode: 'contest', returnTab: 'tourney', tourneyIdx: idx, stat,
       penalty: m.fatigue >= 60 ? 0.85 : 1.0,
       player: { name: m.name, visual: m.visual, stats: { ...m.stats }, hp: 0, maxHp: 2 },
       enemy:  { name: enemy.name, visual: enemy.visual, stats: enemy.stats, hp: 0, maxHp: 2 },
       round: 1, over: false, turn: 0,
     };
     this.showTab('battle');
-    document.getElementById('battle-title').textContent = `${fl.emoji} ${t.name}・決勝`;
+    document.getElementById('battle-title').textContent = `${fl.emoji} ${t.name}・${fl.name}決勝`;
     document.getElementById('battle-log').innerHTML = '';
     document.getElementById('battle-cmds').classList.remove('hidden');
     document.getElementById('battle-close').classList.add('hidden');
     this.setCmds('contest');
-    this.blog(`${t.name}の決勝！ ${STAT_NAMES[t.stat]}の3本勝負、2本先取だ！`, 'info');
+    this.blog(`${fl.name}の決勝！ ${STAT_NAMES[stat]}の3本勝負、2本先取だ！`, 'info');
     if (this.battle.penalty < 1) this.blog(`⚠️ ${m.name}は疲れ気味だ…（記録-15%）`, 'bad');
     this.renderBattle();
     this.entryFx();
@@ -1950,6 +1980,7 @@ const game = {
   closeBattle() {
     const rt = (this.battle && this.battle.returnTab) || 'tourney';
     this.battle = null;
+    this.closeEventPicker();
     this.showTab(rt === 'tourney' && this.state.monster === null ? 'farm' : rt);
     this.renderAll();
   },
@@ -2021,7 +2052,7 @@ const game = {
       const cleared = m && i < m.rank;
       return `<tr class="${locked ? 'locked' : ''} ${cleared ? 'cleared' : ''}">
         <td><span class="rank-chip rank-${t.rank}">${t.rank}</span></td>
-        <td>${t.name}<br><span class="small">${t.stat ? CONTEST_FLAVOR[t.stat].emoji + ' ' + STAT_NAMES[t.stat] + '勝負' : '⚔️ バトル（総合力）'}</span></td>
+        <td>${t.name}<br><span class="small">${t.contest ? '🏅 6種目からえらぶ' : '⚔️ バトル（総合力）'}</span></td>
         <td class="small">参加費 ${t.fee}G<br>賞金 <span class="money">${t.prize}G</span></td>
         <td><button ${locked ? 'disabled' : ''} onclick="game.enterTourney(${i})" class="${cleared ? '' : 'gold'}">${cleared ? '再挑戦' : '出場！'}</button></td>
       </tr>`;
